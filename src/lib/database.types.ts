@@ -330,6 +330,7 @@ export type Database = {
 };
 
 export interface AvatarConfig {
+  heroClass?: "fighter" | "apprentice" | "scout";
   gender: "f" | "m";
   hair: number;
   outfit: number;

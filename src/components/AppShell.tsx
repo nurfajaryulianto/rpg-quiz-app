@@ -22,8 +22,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       router.push("/login");
       return;
     }
-    // Redirect to character creation if participant has no avatar config (non-admin only)
-    if (participant && !participant.avatar_config && participant.role !== "admin" && pathname !== "/create-character") {
+    // Redirect to character creation if participant has no avatar config
+    if (participant && !participant.avatar_config && pathname !== "/create-character") {
       router.push("/create-character");
     }
   }, [user, participant, isInitialized, router, pathname]);
@@ -64,8 +64,8 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Redirect to character creation if no avatar configured (non-admin only)
-  if (!participant.avatar_config && participant.role !== "admin") {
+  // Redirect to character creation if no avatar configured
+  if (!participant.avatar_config) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface">
         <LoadingSpinner text="Redirecting to character creation..." />
