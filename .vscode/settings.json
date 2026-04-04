@@ -1,0 +1,6 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "Set-ExecutionPolicy": true,
+        "npx next": true
+    }
+}

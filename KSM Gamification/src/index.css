@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+@theme {
+  --font-headline: "Plus Jakarta Sans", sans-serif;
+  --font-body: "Plus Jakarta Sans", sans-serif;
+  --font-label: "Plus Jakarta Sans", sans-serif;
+
+  --color-on-secondary-fixed-variant: #005870;
+  --color-on-primary-fixed-variant: #6a0f2e;
+  --color-primary-fixed: #ff85a1;
+  --color-tertiary-fixed: #a6f399;
+  --color-error-container: #fb5151;
+  --color-on-primary-container: #5d0325;
+  --color-surface-container-highest: #ffd0e3;
+  --color-on-primary: #ffeff0;
+  --color-surface-dim: #ffc4dc;
+  --color-error-dim: #9f0519;
+  --color-on-surface-variant: #7d4d63;
+  --color-error: #b31b25;
+  --color-on-primary-fixed: #2b000d;
+  --color-surface-container-high: #ffd8e7;
+  --color-on-tertiary: #d2ffc5;
+  --color-primary-fixed-dim: #ef7894;
+  --color-on-surface: #4a2135;
+  --color-inverse-on-surface: #c58da5;
+  --color-on-secondary: #e4f5ff;
+  --color-surface-container: #ffe0eb;
+  --color-primary: #9c3853;
+  --color-surface-container-lowest: #ffffff;
+  --color-secondary-fixed-dim: #69d0f8;
+  --color-surface-variant: #ffd0e3;
+  --color-surface-tint: #9c3853;
+  --color-on-secondary-fixed: #00394a;
+  --color-surface: #fff4f6;
+  --color-surface-container-low: #ffecf1;
+  --color-secondary-dim: #00576f;
+  --color-inverse-primary: #ff85a1;
+  --color-tertiary-container: #a6f399;
+  --color-on-tertiary-container: #125d16;
+  --color-tertiary: #216921;
+  --color-secondary-fixed: #8adcff;
+  --color-on-tertiary-fixed: #004908;
+  --color-tertiary-dim: #115c15;
+  --color-primary-dim: #8d2c48;
+  --color-on-secondary-container: #004e64;
+  --color-primary-container: #ff85a1;
+  --color-on-background: #4a2135;
+  --color-secondary-container: #8adcff;
+  --color-on-error-container: #570008;
+  --color-surface-bright: #fff4f6;
+  --color-inverse-surface: #220214;
+  --color-on-tertiary-fixed-variant: #1f671f;
+  --color-tertiary-fixed-dim: #98e48c;
+  --color-outline: #9b687f;
+  --color-outline-variant: #d79db5;
+  --color-on-error: #ffefee;
+  --color-secondary: #00647f;
+  --color-background: #fff4f6;
+
+  --radius-lg: 2rem;
+  --radius-xl: 3rem;
+}
+
+@layer base {
+  body {
+    @apply bg-surface font-body text-on-surface min-h-screen;
+  }
+}
+
+@layer components {
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  
+  .bubbly-shadow {
+    box-shadow: 0 12px 40px 0 rgba(74, 33, 53, 0.06);
+  }
+  
+  .glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+  }
+
+  .bubbly-gradient {
+    background: linear-gradient(135deg, #9c3853 0%, #ff85a1 100%);
+  }
+
+  .glossy-overlay {
+    background: linear-gradient(180deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 100%);
+  }
+}

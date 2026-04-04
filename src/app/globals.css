@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+/* ============================================
+   MAPLE ACADEMY - Whimsical RPG Theme
+   ============================================ */
+@theme {
+  --font-headline: "Plus Jakarta Sans", sans-serif;
+  --font-body: "Plus Jakarta Sans", sans-serif;
+
+  --color-primary: #9c3853;
+  --color-primary-dim: #8d2c48;
+  --color-primary-container: #ff85a1;
+  --color-on-primary: #ffeff0;
+  --color-on-primary-container: #5d0325;
+  --color-primary-fixed: #ff85a1;
+  --color-primary-fixed-dim: #ef7894;
+  --color-on-primary-fixed: #2b000d;
+  --color-on-primary-fixed-variant: #6a0f2e;
+
+  --color-secondary: #00647f;
+  --color-secondary-dim: #00576f;
+  --color-secondary-container: #8adcff;
+  --color-on-secondary: #e4f5ff;
+  --color-on-secondary-container: #004e64;
+  --color-secondary-fixed: #8adcff;
+  --color-secondary-fixed-dim: #69d0f8;
+  --color-on-secondary-fixed: #00394a;
+  --color-on-secondary-fixed-variant: #005870;
+
+  --color-tertiary: #216921;
+  --color-tertiary-dim: #115c15;
+  --color-tertiary-container: #a6f399;
+  --color-on-tertiary: #d2ffc5;
+  --color-on-tertiary-container: #125d16;
+  --color-tertiary-fixed: #a6f399;
+  --color-tertiary-fixed-dim: #98e48c;
+  --color-on-tertiary-fixed: #004908;
+  --color-on-tertiary-fixed-variant: #1f671f;
+
+  --color-error: #b31b25;
+  --color-error-dim: #9f0519;
+  --color-error-container: #fb5151;
+  --color-on-error: #ffefee;
+  --color-on-error-container: #570008;
+
+  --color-surface: #fff4f6;
+  --color-surface-dim: #ffc4dc;
+  --color-surface-bright: #fff4f6;
+  --color-surface-variant: #ffd0e3;
+  --color-surface-tint: #9c3853;
+  --color-surface-container: #ffe0eb;
+  --color-surface-container-low: #ffecf1;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-high: #ffd8e7;
+  --color-surface-container-highest: #ffd0e3;
+
+  --color-on-surface: #4a2135;
+  --color-on-surface-variant: #7d4d63;
+  --color-outline: #9b687f;
+  --color-outline-variant: #d79db5;
+
+  --color-background: #fff4f6;
+  --color-on-background: #4a2135;
+  --color-inverse-surface: #220214;
+  --color-inverse-on-surface: #c58da5;
+  --color-inverse-primary: #ff85a1;
+
+  /* Legacy colors for quiz components */
+  --color-rpg-correct: #22c55e;
+  --color-rpg-wrong: #ef4444;
+  --color-rpg-streak: #f97316;
+  --color-rpg-xp-green: #22c55e;
+  --color-rpg-mana-blue: #3b82f6;
+
+  --radius-lg: 2rem;
+  --radius-xl: 3rem;
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+@layer base {
+  body {
+    @apply bg-surface font-body text-on-surface min-h-screen antialiased;
+  }
+}
+
+/* ============================================
+   COMPONENT UTILITIES
+   ============================================ */
+@layer components {
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  .bubbly-shadow {
+    box-shadow: 0 12px 40px 0 rgba(74, 33, 53, 0.06);
+  }
+
+  .glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+  }
+
+  .bubbly-gradient {
+    background: linear-gradient(135deg, #9c3853 0%, #ff85a1 100%);
+  }
+
+  .glossy-overlay {
+    background: linear-gradient(180deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 100%);
+  }
+
+  /* XP Bar */
+  .xp-bar-track {
+    @apply bg-surface-container-highest h-5 rounded-full overflow-hidden;
+  }
+  .xp-bar-fill {
+    @apply h-full transition-all duration-500 ease-out rounded-full;
+    background: linear-gradient(90deg, var(--color-tertiary) 0%, var(--color-tertiary-container) 100%);
+  }
+
+  /* Timer Bar */
+  .timer-bar-track {
+    @apply bg-surface-container-highest h-3 rounded-full overflow-hidden;
+  }
+  .timer-bar-fill {
+    @apply h-full rounded-full transition-[width] duration-100 ease-linear;
+  }
+
+  /* Quiz panels — backward-compatible with older components */
+  .rpg-panel {
+    @apply bg-white/80 backdrop-blur-md border border-white/40 rounded-xl;
+    box-shadow: 0 12px 40px 0 rgba(74, 33, 53, 0.06);
+  }
+  .pixel-border {
+    @apply border border-outline-variant/20 rounded-xl;
+    box-shadow: 0 8px 25px 0 rgba(74, 33, 53, 0.08);
+  }
+  .pixel-border-gold {
+    @apply border-2 border-primary-container rounded-xl;
+    box-shadow: 0 0 20px rgba(255, 133, 161, 0.15);
+  }
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.animate-pulse-red {
+  animation: pulse-red 0.8s ease-in-out infinite;
+}
+
+@keyframes fire-glow {
+  0%, 100% { box-shadow: 0 0 5px var(--color-rpg-streak); }
+  50% { box-shadow: 0 0 20px var(--color-rpg-streak), 0 0 40px var(--color-rpg-streak); }
+}
+.animate-fire {
+  animation: fire-glow 1s ease-in-out infinite;
+}
+
+@keyframes level-up {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-level-up {
+  animation: level-up 0.6s ease-in-out;
+}
+
+/* ============================================
+   SCROLLBAR
+   ============================================ */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-outline-variant);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
