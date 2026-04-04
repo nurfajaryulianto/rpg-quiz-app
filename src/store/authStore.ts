@@ -33,9 +33,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (session?.user) {
         const { data: participant } = await supabase
           .from("participants")
-          .select("*")
+          .select("id, user_id, name, email, nik, role, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, created_at, updated_at")
           .eq("user_id", session.user.id)
-          .single();
+          .limit(1)
+          .maybeSingle();
 
         set({
           user: session.user,
@@ -55,9 +56,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (session?.user) {
         const { data: participant } = await supabase
           .from("participants")
-          .select("*")
+          .select("id, user_id, name, email, nik, role, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, created_at, updated_at")
           .eq("user_id", session.user.id)
-          .single();
+          .limit(1)
+          .maybeSingle();
 
         set({
           user: session.user,
@@ -71,15 +73,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const email = `${nik}@${NIK_EMAIL_DOMAIN}`;
+      console.log("[AUTH] Logging in with email:", email);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      if (error) {
+        console.error("[AUTH] Sign-in error:", error.message);
+        throw error;
+      }
+      console.log("[AUTH] Sign-in success, user:", data.user?.id);
 
       if (data.user) {
-        const { data: participant } = await supabase
+        const { data: participant, error: pError } = await supabase
           .from("participants")
-          .select("*")
+          .select("id, user_id, name, email, nik, role, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, created_at, updated_at")
           .eq("user_id", data.user.id)
-          .single();
+          .limit(1)
+          .maybeSingle();
+
+        if (pError) {
+          console.error("[AUTH] Participant query error:", pError.message, pError);
+        } else {
+          console.log("[AUTH] Participant loaded:", participant?.name, participant?.role);
+        }
 
         set({
           user: data.user,
