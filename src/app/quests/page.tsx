@@ -23,12 +23,22 @@ function QuestsPage() {
 
     async function loadData() {
       try {
-        const [batchRes, sessionRes] = await Promise.all([
+        const [batchRes, sessionRes, assignedRes] = await Promise.all([
           supabase.from("batches").select("*").eq("is_active", true).order("created_at", { ascending: false }),
           supabase.from("exam_sessions").select("*").eq("participant_id", participant!.id),
+          participant!.role === "admin"
+            ? Promise.resolve({ data: null })
+            : supabase.from("batch_participants").select("batch_id").eq("participant_id", participant!.id),
         ]);
 
-        setBatches(batchRes.data ?? []);
+        let allBatches = batchRes.data ?? [];
+        // Regular users only see batches they are assigned to
+        if (participant!.role !== "admin" && assignedRes.data) {
+          const assignedIds = new Set((assignedRes.data as { batch_id: string }[]).map((r) => r.batch_id));
+          allBatches = allBatches.filter((b) => assignedIds.has(b.id));
+        }
+
+        setBatches(allBatches);
         const sessionMap = new Map<string, ExamSession>();
         (sessionRes.data ?? []).forEach((s: ExamSession) => sessionMap.set(s.batch_id, s));
         setSessions(sessionMap);

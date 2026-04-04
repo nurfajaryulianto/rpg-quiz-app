@@ -10,10 +10,12 @@ interface AuthState {
   isInitialized: boolean;
 
   initialize: () => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  login: (nik: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   setParticipant: (p: Participant | null) => void;
 }
+
+const NIK_EMAIL_DOMAIN = "ksm.local";
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
@@ -65,9 +67,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  login: async (email: string, password: string) => {
+  login: async (nik: string, password: string) => {
     set({ isLoading: true });
     try {
+      const email = `${nik}@${NIK_EMAIL_DOMAIN}`;
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 

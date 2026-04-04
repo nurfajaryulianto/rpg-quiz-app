@@ -12,18 +12,21 @@ CREATE TABLE public.participants (
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
+  nik TEXT UNIQUE,
   role TEXT NOT NULL DEFAULT 'participant' CHECK (role IN ('participant', 'admin')),
   level INTEGER NOT NULL DEFAULT 1,
   xp INTEGER NOT NULL DEFAULT 0,
   total_score INTEGER NOT NULL DEFAULT 0,
   quizzes_taken INTEGER NOT NULL DEFAULT 0,
   avatar_url TEXT,
+  avatar_config JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_participants_user_id ON public.participants(user_id);
 CREATE INDEX idx_participants_email ON public.participants(email);
+CREATE INDEX idx_participants_nik ON public.participants(nik);
 CREATE INDEX idx_participants_role ON public.participants(role);
 
 -- ============================================
@@ -43,6 +46,20 @@ CREATE TABLE public.batches (
 );
 
 CREATE INDEX idx_batches_is_active ON public.batches(is_active);
+
+-- ============================================
+-- BATCH PARTICIPANTS (assign users to batches)
+-- ============================================
+CREATE TABLE public.batch_participants (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  batch_id UUID NOT NULL REFERENCES public.batches(id) ON DELETE CASCADE,
+  participant_id UUID NOT NULL REFERENCES public.participants(id) ON DELETE CASCADE,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(batch_id, participant_id)
+);
+
+CREATE INDEX idx_batch_participants_batch ON public.batch_participants(batch_id);
+CREATE INDEX idx_batch_participants_participant ON public.batch_participants(participant_id);
 
 -- ============================================
 -- QUESTIONS
@@ -265,6 +282,22 @@ CREATE POLICY "Users can update own exam sessions"
   USING (
     participant_id IN (
       SELECT id FROM public.participants WHERE user_id = auth.uid()
+    )
+  );
+
+-- Batch Participants
+ALTER TABLE public.batch_participants ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own batch assignments"
+  ON public.batch_participants FOR SELECT
+  USING (true);
+
+CREATE POLICY "Admin can manage batch participants"
+  ON public.batch_participants FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.participants
+      WHERE user_id = auth.uid() AND role = 'admin'
     )
   );
 

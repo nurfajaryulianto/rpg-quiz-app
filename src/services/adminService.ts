@@ -221,26 +221,26 @@ export async function getParticipants(): Promise<Participant[]> {
 
 export async function createParticipant(participant: {
   name: string;
-  email: string;
+  nik: string;
   role?: "participant" | "admin";
 }) {
-  const { data, error } = await supabase
-    .from("participants")
-    .insert({
-      name: participant.name,
-      email: participant.email,
-      role: participant.role ?? "participant",
-    })
-    .select()
-    .single();
+  const res = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: participant.name, nik: participant.nik }),
+  });
 
-  if (error) throw error;
-  return data;
+  const result = await res.json();
+  if (!result.success) {
+    const failedMsg = result.results?.find((r: { success: boolean; error?: string }) => !r.success)?.error;
+    throw new Error(failedMsg ?? result.message ?? "Failed to create participant");
+  }
+  return result;
 }
 
 export async function updateParticipant(id: string, updates: {
   name?: string;
-  email?: string;
+  nik?: string;
   role?: "participant" | "admin";
 }) {
   const { data, error } = await supabase
@@ -273,20 +273,20 @@ export async function resetParticipantProgress(id: string) {
 }
 
 export async function uploadParticipants(participants: ParsedParticipant[]) {
-  const { data, error } = await supabase
-    .from("participants")
-    .upsert(
-      participants.map((p) => ({
-        name: p.name,
-        email: p.email,
-        role: "participant" as const,
-      })),
-      { onConflict: "email" }
-    )
-    .select();
+  const res = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      participants: participants.map((p) => ({ name: p.name, nik: p.nik })),
+    }),
+  });
 
-  if (error) throw error;
-  return data ?? [];
+  const result = await res.json();
+  if (!result.success) {
+    const failedCount = result.results?.filter((r: { success: boolean }) => !r.success).length ?? 0;
+    throw new Error(`${failedCount} participant(s) failed to create`);
+  }
+  return result.results ?? [];
 }
 
 export async function deleteParticipant(id: string) {
@@ -405,4 +405,45 @@ export async function getBatchStats(batchId: string) {
     avgScore,
     topScorers: sessionData.slice(0, 5),
   };
+}
+
+// ============================================
+// BATCH PARTICIPANTS (assign users to batches)
+// ============================================
+
+export async function getBatchParticipants(batchId: string): Promise<Participant[]> {
+  const { data, error } = await supabase
+    .from("batch_participants")
+    .select("participant_id, participants(*)")
+    .eq("batch_id", batchId);
+
+  if (error) throw error;
+  return (data ?? []).map(
+    (bp: { participant_id: string; participants: unknown }) => bp.participants as Participant
+  );
+}
+
+export async function addParticipantsToBatch(batchId: string, participantIds: string[]) {
+  const rows = participantIds.map((pid) => ({ batch_id: batchId, participant_id: pid }));
+  const { error } = await supabase.from("batch_participants").upsert(rows, { onConflict: "batch_id,participant_id" });
+  if (error) throw error;
+}
+
+export async function removeParticipantFromBatch(batchId: string, participantId: string) {
+  const { error } = await supabase
+    .from("batch_participants")
+    .delete()
+    .eq("batch_id", batchId)
+    .eq("participant_id", participantId);
+  if (error) throw error;
+}
+
+export async function getAssignedBatchIds(participantId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("batch_participants")
+    .select("batch_id")
+    .eq("participant_id", participantId);
+
+  if (error) throw error;
+  return (data ?? []).map((bp: { batch_id: string }) => bp.batch_id);
 }

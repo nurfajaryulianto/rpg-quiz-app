@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
@@ -14,8 +14,12 @@ import {
   deleteBatch,
   getBatchStats,
   resetBatchResults,
+  getParticipants,
+  getBatchParticipants,
+  addParticipantsToBatch,
+  removeParticipantFromBatch,
 } from "@/services/adminService";
-import type { Batch, ExamSession } from "@/lib/database.types";
+import type { Batch, ExamSession, Participant } from "@/lib/database.types";
 
 interface BatchForm {
   name: string;
@@ -43,6 +47,11 @@ export default function BatchesPage() {
   const [batchStats, setBatchStats] = useState<Record<string, BatchStats>>({});
   const [loadingStats, setLoadingStats] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [managingBatch, setManagingBatch] = useState<Batch | null>(null);
+  const [allParticipants, setAllParticipants] = useState<Participant[]>([]);
+  const [assignedParticipants, setAssignedParticipants] = useState<Participant[]>([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [participantSearch, setParticipantSearch] = useState("");
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<BatchForm>();
 
@@ -137,6 +146,60 @@ export default function BatchesPage() {
       setExpandedBatch(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to reset");
+    }
+  };
+
+  const openManageParticipants = async (batch: Batch) => {
+    setManagingBatch(batch);
+    setLoadingParticipants(true);
+    setParticipantSearch("");
+    try {
+      const [all, assigned] = await Promise.all([
+        getParticipants(),
+        getBatchParticipants(batch.id),
+      ]);
+      setAllParticipants(all.filter((p) => p.role === "participant"));
+      setAssignedParticipants(assigned);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to load participants");
+      setManagingBatch(null);
+    } finally {
+      setLoadingParticipants(false);
+    }
+  };
+
+  const handleAssignParticipant = async (participantId: string) => {
+    if (!managingBatch) return;
+    try {
+      await addParticipantsToBatch(managingBatch.id, [participantId]);
+      const p = allParticipants.find((p) => p.id === participantId);
+      if (p) setAssignedParticipants((prev) => [...prev, p]);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to assign");
+    }
+  };
+
+  const handleRemoveParticipant = async (participantId: string) => {
+    if (!managingBatch) return;
+    try {
+      await removeParticipantFromBatch(managingBatch.id, participantId);
+      setAssignedParticipants((prev) => prev.filter((p) => p.id !== participantId));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to remove");
+    }
+  };
+
+  const handleAssignAll = async () => {
+    if (!managingBatch) return;
+    const unassignedIds = allParticipants
+      .filter((p) => !assignedParticipants.some((ap) => ap.id === p.id))
+      .map((p) => p.id);
+    if (unassignedIds.length === 0) return;
+    try {
+      await addParticipantsToBatch(managingBatch.id, unassignedIds);
+      setAssignedParticipants([...allParticipants]);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to assign all");
     }
   };
 
@@ -326,6 +389,13 @@ export default function BatchesPage() {
                       Questions
                     </button>
                     <button
+                      onClick={() => openManageParticipants(batch)}
+                      className="px-3 py-1.5 bg-secondary-container text-on-secondary-container text-xs font-bold rounded-lg hover:opacity-80 transition-colors flex items-center gap-1"
+                    >
+                      <MaterialIcon name="group_add" className="text-sm" />
+                      Participants
+                    </button>
+                    <button
                       onClick={() => handleDelete(batch.id)}
                       className="px-3 py-1.5 bg-error-container/20 text-error text-xs font-bold rounded-lg hover:bg-error-container/30 transition-colors flex items-center gap-1"
                     >
@@ -402,6 +472,136 @@ export default function BatchesPage() {
           ))}
         </div>
       )}
+
+      {/* Manage Participants Modal */}
+      <AnimatePresence>
+        {managingBatch && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+            onClick={() => setManagingBatch(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl bubbly-shadow w-full max-w-lg max-h-[85vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="p-6 border-b border-outline-variant/20">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-black text-on-surface flex items-center gap-2">
+                    <MaterialIcon name="group_add" className="text-primary" />
+                    Manage Participants
+                  </h3>
+                  <button
+                    onClick={() => setManagingBatch(null)}
+                    className="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors"
+                  >
+                    <MaterialIcon name="close" className="text-on-surface-variant" />
+                  </button>
+                </div>
+                <p className="text-on-surface-variant text-sm">
+                  Assign participants to <strong>{managingBatch.name}</strong>
+                </p>
+
+                {/* Search + Assign All */}
+                <div className="flex gap-2 mt-4">
+                  <div className="relative flex-1">
+                    <MaterialIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant text-lg" />
+                    <input
+                      type="text"
+                      value={participantSearch}
+                      onChange={(e) => setParticipantSearch(e.target.value)}
+                      placeholder="Search participants..."
+                      className="w-full bg-surface-container-lowest border-2 border-outline-variant/30 rounded-lg pl-10 pr-3 py-2 text-sm text-on-surface focus:border-primary focus:outline-none transition-colors"
+                    />
+                  </div>
+                  <button
+                    onClick={handleAssignAll}
+                    className="px-3 py-2 bg-primary text-on-primary text-xs font-bold rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap flex items-center gap-1"
+                  >
+                    <MaterialIcon name="group_add" className="text-sm" />
+                    Add All
+                  </button>
+                </div>
+
+                <p className="text-xs text-on-surface-variant mt-2">
+                  {assignedParticipants.length} of {allParticipants.length} assigned
+                </p>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {loadingParticipants ? (
+                  <LoadingSpinner text="Loading participants..." />
+                ) : allParticipants.length === 0 ? (
+                  <div className="text-center py-8">
+                    <MaterialIcon name="person_off" className="text-4xl text-outline-variant mb-2" />
+                    <p className="text-on-surface-variant text-sm">No participants found.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {allParticipants
+                      .filter((p) =>
+                        participantSearch
+                          ? p.name.toLowerCase().includes(participantSearch.toLowerCase()) ||
+                            p.email.toLowerCase().includes(participantSearch.toLowerCase())
+                          : true
+                      )
+                      .map((p) => {
+                        const isAssigned = assignedParticipants.some((ap) => ap.id === p.id);
+                        return (
+                          <div
+                            key={p.id}
+                            className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                              isAssigned
+                                ? "bg-tertiary-container/10 border-tertiary-container/30"
+                                : "bg-white border-outline-variant/20 hover:border-primary/20"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                                isAssigned ? "bg-tertiary-container" : "bg-surface-container-high"
+                              }`}>
+                                <MaterialIcon
+                                  name={isAssigned ? "check" : "person"}
+                                  className={`text-sm ${isAssigned ? "text-on-tertiary-container" : "text-on-surface-variant"}`}
+                                />
+                              </div>
+                              <div>
+                                <p className="font-bold text-on-surface text-sm">{p.name}</p>
+                                <p className="text-on-surface-variant text-xs">{p.email}</p>
+                              </div>
+                            </div>
+                            {isAssigned ? (
+                              <button
+                                onClick={() => handleRemoveParticipant(p.id)}
+                                className="px-3 py-1.5 bg-error-container/20 text-error text-xs font-bold rounded-lg hover:bg-error-container/30 transition-colors"
+                              >
+                                Remove
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleAssignParticipant(p.id)}
+                                className="px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded-lg hover:opacity-90 transition-opacity"
+                              >
+                                Add
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

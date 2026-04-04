@@ -19,7 +19,7 @@ import { getLevelTitle } from "@/utils/gamification";
 
 interface ParticipantForm {
   name: string;
-  email: string;
+  nik: string;
 }
 
 export default function ParticipantsPage() {
@@ -81,12 +81,12 @@ export default function ParticipantsPage() {
       if (editingParticipant) {
         await updateParticipant(editingParticipant.id, {
           name: data.name,
-          email: data.email,
+          nik: data.nik,
         });
       } else {
         await createParticipant({
           name: data.name,
-          email: data.email,
+          nik: data.nik,
         });
       }
       reset();
@@ -103,7 +103,7 @@ export default function ParticipantsPage() {
   const handleEdit = (p: Participant) => {
     setEditingParticipant(p);
     setValue("name", p.name);
-    setValue("email", p.email);
+    setValue("nik", p.nik ?? "");
     setShowForm(true);
   };
 
@@ -131,7 +131,7 @@ export default function ParticipantsPage() {
     ? participants.filter(
         (p) =>
           p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.email.toLowerCase().includes(searchQuery.toLowerCase())
+          (p.nik ?? "").toLowerCase().includes(searchQuery.toLowerCase())
       )
     : participants;
 
@@ -150,7 +150,7 @@ export default function ParticipantsPage() {
         </div>
         <button
           onClick={() => {
-            reset({ name: "", email: "" });
+            reset({ name: "", nik: "" });
             setEditingParticipant(null);
             setShowForm(!showForm);
           }}
@@ -187,18 +187,18 @@ export default function ParticipantsPage() {
                   )}
                 </div>
                 <div>
-                  <label className="block text-on-surface-variant text-sm font-medium mb-1">Email</label>
+                  <label className="block text-on-surface-variant text-sm font-medium mb-1">NIK</label>
                   <input
-                    type="email"
-                    {...register("email", {
-                      required: "Email is required",
-                      pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Invalid email" },
+                    type="text"
+                    {...register("nik", {
+                      required: "NIK wajib diisi",
+                      pattern: { value: /^[a-zA-Z0-9]+$/, message: "NIK hanya boleh huruf dan angka" },
                     })}
                     className={inputClasses}
-                    placeholder="email@example.com"
+                    placeholder="Nomor Induk Karyawan"
                   />
-                  {errors.email && (
-                    <p className="text-error text-xs mt-1">{errors.email.message}</p>
+                  {errors.nik && (
+                    <p className="text-error text-xs mt-1">{errors.nik.message}</p>
                   )}
                 </div>
               </div>
@@ -237,8 +237,8 @@ export default function ParticipantsPage() {
         </h3>
         <p className="text-on-surface-variant text-xs mb-3">
           Excel columns: <code className="text-primary font-bold">name</code>,{" "}
-          <code className="text-primary font-bold">email</code>.
-          Duplicate emails will be updated instead of creating duplicates.
+          <code className="text-primary font-bold">nik</code>.
+          NIK yang sudah ada akan di-update namanya.
         </p>
         <div className="flex gap-3 items-center">
           <input
@@ -277,7 +277,7 @@ export default function ParticipantsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name or email..."
+              placeholder="Search by name or NIK..."
               className="w-full bg-surface-container-lowest border-2 border-outline-variant/30 rounded-lg pl-10 pr-3 py-2.5 text-sm text-on-surface focus:border-primary focus:outline-none transition-colors"
             />
           </div>
@@ -313,7 +313,7 @@ export default function ParticipantsPage() {
                   </div>
                   <div>
                     <p className="font-bold text-sm text-on-surface">{p.name}</p>
-                    <p className="text-on-surface-variant text-xs">{p.email}</p>
+                    <p className="text-on-surface-variant text-xs">{p.nik ?? p.email}</p>
                   </div>
                 </div>
                 <div className="text-sm">

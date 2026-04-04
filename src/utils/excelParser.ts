@@ -12,7 +12,7 @@ export interface ParsedQuestion {
 
 export interface ParsedParticipant {
   name: string;
-  email: string;
+  nik: string;
 }
 
 /**
@@ -72,11 +72,11 @@ export function parseParticipantsExcel(buffer: ArrayBuffer): ParsedParticipant[]
 
   return rows.map((row, index) => {
     const name = String(row.name ?? row.Name ?? row.nama ?? "").trim();
-    const email = String(row.email ?? row.Email ?? "").trim();
+    const nik = String(row.nik ?? row.NIK ?? row.Nik ?? "").trim();
 
     if (!name) throw new Error(`Row ${index + 2}: Missing name`);
-    if (!email) throw new Error(`Row ${index + 2}: Missing email`);
+    if (!nik) throw new Error(`Row ${index + 2}: Missing NIK`);
 
-    return { name, email };
+    return { name, nik };
   });
 }

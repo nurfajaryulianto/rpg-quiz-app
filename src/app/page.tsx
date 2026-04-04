@@ -24,7 +24,7 @@ function HomePage() {
 
     async function loadData() {
       try {
-        const [batchRes, leaderboardRes] = await Promise.all([
+        const [batchRes, leaderboardRes, assignedRes] = await Promise.all([
           supabase
             .from("batches")
             .select("*")
@@ -36,9 +36,18 @@ function HomePage() {
             .eq("role", "participant")
             .order("total_score", { ascending: false })
             .limit(5),
+          participant!.role === "admin"
+            ? Promise.resolve({ data: null })
+            : supabase.from("batch_participants").select("batch_id").eq("participant_id", participant!.id),
         ]);
 
-        setBatches(batchRes.data ?? []);
+        let allBatches = batchRes.data ?? [];
+        if (participant!.role !== "admin" && assignedRes.data) {
+          const assignedIds = new Set((assignedRes.data as { batch_id: string }[]).map((r) => r.batch_id));
+          allBatches = allBatches.filter((b) => assignedIds.has(b.id));
+        }
+
+        setBatches(allBatches);
         setTopPlayers(leaderboardRes.data ?? []);
       } finally {
         setLoading(false);

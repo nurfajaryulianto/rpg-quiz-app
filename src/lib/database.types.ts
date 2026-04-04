@@ -7,12 +7,14 @@ export type Database = {
           user_id: string | null;
           name: string;
           email: string;
+          nik: string | null;
           role: "participant" | "admin";
           level: number;
           xp: number;
           total_score: number;
           quizzes_taken: number;
           avatar_url: string | null;
+          avatar_config: AvatarConfig | null;
           created_at: string;
           updated_at: string;
         };
@@ -21,12 +23,14 @@ export type Database = {
           user_id?: string | null;
           name: string;
           email: string;
+          nik?: string | null;
           role?: "participant" | "admin";
           level?: number;
           xp?: number;
           total_score?: number;
           quizzes_taken?: number;
           avatar_url?: string | null;
+          avatar_config?: AvatarConfig | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -35,12 +39,14 @@ export type Database = {
           user_id?: string | null;
           name?: string;
           email?: string;
+          nik?: string | null;
           role?: "participant" | "admin";
           level?: number;
           xp?: number;
           total_score?: number;
           quizzes_taken?: number;
           avatar_url?: string | null;
+          avatar_config?: AvatarConfig | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -271,6 +277,42 @@ export type Database = {
           },
         ];
       };
+      batch_participants: {
+        Row: {
+          id: string;
+          batch_id: string;
+          participant_id: string;
+          assigned_at: string;
+        };
+        Insert: {
+          id?: string;
+          batch_id: string;
+          participant_id: string;
+          assigned_at?: string;
+        };
+        Update: {
+          id?: string;
+          batch_id?: string;
+          participant_id?: string;
+          assigned_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "batch_participants_batch_id_fkey";
+            columns: ["batch_id"];
+            isOneToOne: false;
+            referencedRelation: "batches";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "batch_participants_participant_id_fkey";
+            columns: ["participant_id"];
+            isOneToOne: false;
+            referencedRelation: "participants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -287,11 +329,20 @@ export type Database = {
   };
 };
 
+export interface AvatarConfig {
+  gender: "f" | "m";
+  hair: number;
+  outfit: number;
+  acc: number;
+  weapon: number;
+}
+
 export type Participant = Database["public"]["Tables"]["participants"]["Row"];
 export type Batch = Database["public"]["Tables"]["batches"]["Row"];
 export type Question = Database["public"]["Tables"]["questions"]["Row"];
 export type Option = Database["public"]["Tables"]["options"]["Row"];
 export type Answer = Database["public"]["Tables"]["answers"]["Row"];
 export type ExamSession = Database["public"]["Tables"]["exam_sessions"]["Row"];
+export type BatchParticipant = Database["public"]["Tables"]["batch_participants"]["Row"];
 
 export type QuestionWithOptions = Question & { options: Option[] };

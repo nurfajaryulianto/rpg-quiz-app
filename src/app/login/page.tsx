@@ -8,7 +8,7 @@ import { useAuthStore } from "@/store/authStore";
 import MaterialIcon from "@/components/MaterialIcon";
 
 interface LoginForm {
-  email: string;
+  nik: string;
   password: string;
 }
 
@@ -26,7 +26,7 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     setError(null);
     try {
-      await login(data.email, data.password);
+      await login(data.nik, data.password);
       router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
@@ -35,6 +35,18 @@ export default function LoginPage() {
 
   return (
     <div className="h-screen w-full flex items-center justify-center relative overflow-hidden bg-surface">
+      {/* Background Image */}
+      <div className="absolute inset-0 z-0">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          alt="Magical village sunset"
+          className="w-full h-full object-cover"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuBtqCTrL_wTcVSYY556MNgZxdDLAYsH7T0bxbLAyYHG_8YFoZYWztIsm8fZZ883sM3bg9i4xn4IgYzb_izW9F3RGY_ZZOth_SpCen_-tUCtdyzTBrFL06GgNZgrjsSZa0-5oky1ypkd0cXAK5dlXCXVCdyxntENo0eddv_AmRG2_yc7wsOOUK8v2pvLUL_NMicmmakXRZ6uEKKSXpPU3h2gul6sSJm9-HupChPgYrB9uGEKTGpSEbSzX7uqmgou_QrB9_DAFl3p3g"
+          referrerPolicy="no-referrer"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-surface/20 to-surface/60" />
+      </div>
+
       <motion.main
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -61,28 +73,28 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             <div className="space-y-2">
               <label className="block text-sm font-bold text-on-surface-variant ml-2">
-                Character Alias (Email)
+                NIK (Nomor Induk Karyawan)
               </label>
               <div className="relative group">
                 <MaterialIcon
-                  name="person"
+                  name="badge"
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-outline-variant group-focus-within:text-primary transition-colors"
                 />
                 <input
-                  type="email"
-                  {...register("email", {
-                    required: "Email is required",
+                  type="text"
+                  {...register("nik", {
+                    required: "NIK wajib diisi",
                     pattern: {
-                      value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                      message: "Invalid email format",
+                      value: /^[a-zA-Z0-9]+$/,
+                      message: "NIK hanya boleh huruf dan angka",
                     },
                   })}
                   className="w-full pl-12 pr-6 py-4 rounded-lg bg-surface-container-highest border-none ring-0 focus:ring-2 focus:ring-primary/20 transition-all text-on-surface font-semibold placeholder:text-outline-variant/60"
-                  placeholder="hero@quest.com"
+                  placeholder="Masukkan NIK"
                 />
               </div>
-              {errors.email && (
-                <p className="text-error text-xs ml-2">{errors.email.message}</p>
+              {errors.nik && (
+                <p className="text-error text-xs ml-2">{errors.nik.message}</p>
               )}
             </div>
 
@@ -135,7 +147,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-on-surface-variant text-sm mt-6">
-          Contact your Guild Master (admin) to get an account
+          Default password: <span className="font-bold text-primary">user123</span> — Hubungi admin untuk mendapatkan akun
         </p>
       </motion.main>
     </div>

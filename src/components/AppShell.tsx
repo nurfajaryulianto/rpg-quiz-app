@@ -17,10 +17,16 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const { user, participant, isInitialized } = useAuthStore();
 
   useEffect(() => {
-    if (isInitialized && !user) {
+    if (!isInitialized) return;
+    if (!user) {
       router.push("/login");
+      return;
     }
-  }, [user, isInitialized, router]);
+    // Redirect to character creation if participant has no avatar config (non-admin only)
+    if (participant && !participant.avatar_config && participant.role !== "admin" && pathname !== "/create-character") {
+      router.push("/create-character");
+    }
+  }, [user, participant, isInitialized, router, pathname]);
 
   if (!isInitialized) {
     return (
@@ -58,12 +64,33 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Redirect to character creation if no avatar configured (non-admin only)
+  if (!participant.avatar_config && participant.role !== "admin") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <LoadingSpinner text="Redirecting to character creation..." />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-surface">
       <TopBar />
       <Sidebar />
 
       <main className="lg:ml-64 pt-28 pb-24 lg:pb-12 px-4 md:px-8 min-h-screen relative overflow-hidden">
+        {/* Background Image */}
+        <div className="absolute inset-0 z-0 pointer-events-none opacity-40">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            alt="Library Background"
+            className="w-full h-full object-cover"
+            src="https://lh3.googleusercontent.com/aida-public/AB6AXuD7zbNjUvXhjDq5TurbB9wl0aCu8AwvQnTlAqEtnmbW5hHFIE27Xft3ugXDb3ZCKv91SMC1VDD1CWj5jrzCJhhMC8b8ySOCMMtW0FJIZsC7PFVJhv6Zz9JHDZlJtpF5wehLw1M1nXaXd6KDKhPOSM4okknSLueyT-yFVvdscBG2O4vPw-fePN6TKXhvBRJ2cNah5lPwh7bUDfZt-l9HK2eKpfWQHSwpJ5mZM-1bxHYQ1yalRxsCXRdI2CAfG_yFeO4IAIOkvqVL8Q"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-surface/90 via-surface/60 to-surface" />
+        </div>
+
         <AnimatePresence mode="wait">
           <motion.div
             key={pathname}
@@ -71,6 +98,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.3 }}
+            className="relative z-10"
           >
             {children}
           </motion.div>
