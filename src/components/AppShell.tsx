@@ -8,23 +8,52 @@ import AuthProvider from "./AuthProvider";
 import TopBar from "./TopBar";
 import Sidebar from "./Sidebar";
 import MobileNav from "./MobileNav";
+import MaterialIcon from "./MaterialIcon";
 import LoadingSpinner from "./ui/LoadingSpinner";
 
 function AppShellInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, participant } = useAuthStore();
+  const { user, participant, isInitialized } = useAuthStore();
 
   useEffect(() => {
-    if (!user) {
+    if (isInitialized && !user) {
       router.push("/login");
     }
-  }, [user, router]);
+  }, [user, isInitialized, router]);
 
-  if (!user || !participant) {
+  if (!isInitialized) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner />
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <LoadingSpinner text="Loading..." />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <LoadingSpinner text="Redirecting..." />
+      </div>
+    );
+  }
+
+  if (!participant) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <div className="text-center">
+          <MaterialIcon name="error_outline" className="text-5xl text-error mb-4" />
+          <h2 className="text-xl font-bold text-on-surface mb-2">Profile Not Found</h2>
+          <p className="text-on-surface-variant text-sm mb-6">
+            Your account exists but no participant profile was created.
+          </p>
+          <button
+            onClick={() => { useAuthStore.getState().logout(); router.push("/login"); }}
+            className="px-6 py-3 bg-primary text-on-primary rounded-xl font-bold bubbly-shadow"
+          >
+            Back to Login
+          </button>
+        </div>
       </div>
     );
   }
