@@ -15,99 +15,108 @@ import {
 import { buildCharacterSVG } from "@/utils/characterRenderer";
 import type { AvatarConfig } from "@/lib/database.types";
 
+/* ═══════════════ types & constants ═══════════════ */
+
 type HeroClass = "fighter" | "apprentice" | "scout";
 
-type HeroDefinition = {
+interface HeroDef {
   id: HeroClass;
   name: string;
-  subtitle: string;
-  description: string;
+  title: string;
+  desc: string;
   badge?: string;
   icon: string;
   accent: string;
-  surface: string;
   glow: string;
   stats: { str: number; mag: number; agi: number };
-};
+}
 
-const HEROES: HeroDefinition[] = [
+const HEROES: HeroDef[] = [
   {
     id: "fighter",
     name: "Fighter",
-    subtitle: "Frontline Vanguard",
-    description: "A brave warrior with high physical defense and decisive close-range attacks.",
+    title: "Swordsman",
+    desc: "A brave warrior with high physical defense and devastating close-range attacks. Masters of the blade.",
     icon: "swords",
-    accent: "#d9586d",
-    surface: "rgba(255, 240, 242, 0.92)",
-    glow: "rgba(217, 88, 109, 0.26)",
+    accent: "#ff6b6b",
+    glow: "rgba(255,107,107,0.35)",
     stats: { str: 5, mag: 1, agi: 2 },
   },
   {
     id: "apprentice",
     name: "Apprentice",
-    subtitle: "Arcane Student",
-    description: "A student of the mystic arts. Masters of elemental damage and support spells.",
+    title: "Magician",
+    desc: "A student of the mystic arts. Wields devastating elemental magic and powerful support spells.",
     badge: "Popular",
     icon: "auto_fix_high",
-    accent: "#8f5fce",
-    surface: "rgba(245, 240, 255, 0.94)",
-    glow: "rgba(143, 95, 206, 0.22)",
+    accent: "#a78bfa",
+    glow: "rgba(167,139,250,0.35)",
     stats: { str: 1, mag: 5, agi: 2 },
   },
   {
     id: "scout",
     name: "Scout",
-    subtitle: "Swift Pathfinder",
-    description: "Swift and nimble explorers specialized in precision, speed, and battlefield mobility.",
+    title: "Archer",
+    desc: "Swift and nimble pathfinders. Specialized in long-range precision strikes and rapid movement.",
     icon: "explore",
-    accent: "#5d9a62",
-    surface: "rgba(241, 250, 241, 0.94)",
-    glow: "rgba(93, 154, 98, 0.22)",
+    accent: "#4ade80",
+    glow: "rgba(74,222,128,0.35)",
     stats: { str: 2, mag: 2, agi: 5 },
   },
 ];
 
-const HERO_PRESETS: Record<HeroClass, Record<Gender, { hair: number; outfit: number; acc: number; weapon: number }>> = {
-  fighter: {
-    f: { hair: 5, outfit: 5, acc: 5, weapon: 1 },
-    m: { hair: 0, outfit: 0, acc: 5, weapon: 0 },
-  },
-  apprentice: {
-    f: { hair: 1, outfit: 1, acc: 2, weapon: 3 },
-    m: { hair: 5, outfit: 1, acc: 5, weapon: 3 },
-  },
-  scout: {
-    f: { hair: 2, outfit: 5, acc: 1, weapon: 2 },
-    m: { hair: 3, outfit: 3, acc: 4, weapon: 2 },
-  },
+const PRESETS: Record<HeroClass, Record<Gender, { hair: number; outfit: number; acc: number; weapon: number }>> = {
+  fighter:    { f: { hair: 5, outfit: 5, acc: 5, weapon: 1 }, m: { hair: 0, outfit: 0, acc: 5, weapon: 0 } },
+  apprentice: { f: { hair: 1, outfit: 1, acc: 2, weapon: 3 }, m: { hair: 5, outfit: 1, acc: 5, weapon: 3 } },
+  scout:      { f: { hair: 2, outfit: 5, acc: 1, weapon: 2 }, m: { hair: 3, outfit: 3, acc: 4, weapon: 2 } },
 };
 
-const SIDE_NAV = [
-  { label: "Home", icon: "home" },
-  { label: "Quests", icon: "foundation", active: true },
-  { label: "Leaderboard", icon: "leaderboard" },
-  { label: "Inventory", icon: "backpack" },
-];
+const STAT_LABELS: Record<string, string> = { str: "STR", mag: "INT", agi: "AGI" };
+const STAT_COLORS: Record<string, string> = { str: "#ff6b6b", mag: "#a78bfa", agi: "#4ade80" };
 
-const QUICK_OPTIONS = {
-  outfits: ["Standard", "Reinforced", "Ceremonial", "Shadow"],
-  accessories: ["None", "Hero Cape", "Mystic Amulet", "Tactical Goggles"],
-};
+/* ═══════════════ entry ═══════════════ */
 
 export default function CreateCharacterPage() {
   return (
     <AuthProvider>
-      <CreateCharacterInner />
+      <Inner />
     </AuthProvider>
   );
 }
 
-function CreateCharacterInner() {
+/* ═══════════════ stars background ═══════════════ */
+
+function Starfield() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {Array.from({ length: 40 }).map((_, i) => (
+        <div
+          key={i}
+          className="absolute rounded-full bg-white animate-twinkle"
+          style={{
+            width: i % 5 === 0 ? 3 : i % 3 === 0 ? 2 : 1,
+            height: i % 5 === 0 ? 3 : i % 3 === 0 ? 2 : 1,
+            left: `${(i * 37 + 13) % 100}%`,
+            top: `${(i * 23 + 7) % 70}%`,
+            animationDelay: `${(i * 0.3) % 4}s`,
+            opacity: 0.4 + (i % 4) * 0.15,
+          }}
+        />
+      ))}
+      <div className="absolute top-[15%] left-[10%] h-[1px] w-[80px] bg-gradient-to-r from-transparent via-white/60 to-transparent animate-shooting-star" />
+    </div>
+  );
+}
+
+/* ═══════════════ main component ═══════════════ */
+
+function Inner() {
   const router = useRouter();
   const { participant, setParticipant, isLoading } = useAuthStore();
 
-  const [selectedHero, setSelectedHero] = useState<HeroClass | null>(null);
-  const [gender, setGenderState] = useState<Gender>("f");
+  const [heroId, setHeroId] = useState<HeroClass | null>(null);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [gender, setGenderRaw] = useState<Gender>("f");
   const [hair, setHair] = useState(0);
   const [outfit, setOutfit] = useState(0);
   const [acc, setAcc] = useState(0);
@@ -118,587 +127,454 @@ function CreateCharacterInner() {
   const [pop, setPop] = useState(false);
 
   const svgRef = useRef<SVGSVGElement>(null);
-  const dragStartX = useRef<number | null>(null);
-  const dragStartAngle = useRef(0);
+  const dragX = useRef<number | null>(null);
+  const dragAngle = useRef(0);
 
   useEffect(() => {
-    if (participant?.avatar_config) {
-      router.replace("/");
-    }
-    if (!participant && !isLoading) {
-      router.replace("/login");
-    }
+    if (participant?.avatar_config) router.replace("/");
+    if (!participant && !isLoading) router.replace("/login");
   }, [participant, isLoading, router]);
 
-  const triggerPop = () => {
-    setPop(true);
-    setTimeout(() => setPop(false), 220);
+  const triggerPop = () => { setPop(true); setTimeout(() => setPop(false), 220); };
+
+  const applyPreset = (h: HeroClass, g: Gender) => {
+    const p = PRESETS[h][g];
+    setHair(p.hair); setOutfit(p.outfit); setAcc(p.acc); setWeapon(p.weapon);
+    setAngle(0); setTab("hair"); triggerPop();
   };
 
-  const applyHeroPreset = (hero: HeroClass, nextGender: Gender) => {
-    const preset = HERO_PRESETS[hero][nextGender];
-    setHair(preset.hair);
-    setOutfit(preset.outfit);
-    setAcc(preset.acc);
-    setWeapon(preset.weapon);
-    setAngle(0);
-    setTab("hair");
+  const selectHero = (h: HeroClass) => { setHeroId(h); applyPreset(h, gender); setCustomOpen(true); };
+
+  const setGender = (g: Gender) => {
+    setGenderRaw(g);
+    if (heroId) applyPreset(heroId, g);
+    else { setHair(0); setOutfit(0); setAcc(0); setWeapon(0); }
     triggerPop();
   };
 
-  const handleHeroSelect = (hero: HeroClass) => {
-    setSelectedHero(hero);
-    applyHeroPreset(hero, gender);
-  };
+  const rotate = (d: number) => { setAngle(p => ((p + d) % 8 + 8) % 8); triggerPop(); };
 
-  const setGender = (nextGender: Gender) => {
-    setGenderState(nextGender);
-    if (selectedHero) {
-      applyHeroPreset(selectedHero, nextGender);
-      return;
-    }
-    setHair(0);
-    setOutfit(0);
-    setAcc(0);
-    setWeapon(0);
+  const pick = (cat: Category, i: number) => {
+    ({ hair: setHair, outfit: setOutfit, acc: setAcc, weapon: setWeapon }[cat])(i);
     triggerPop();
   };
 
-  const rotate = (dir: number) => {
-    setAngle((prev) => ((prev + dir) % 8 + 8) % 8);
-    triggerPop();
-  };
+  const sel = (cat: Category) => ({ hair, outfit, acc, weapon }[cat]);
 
-  const pick = (cat: Category, idx: number) => {
-    if (cat === "hair") setHair(idx);
-    else if (cat === "outfit") setOutfit(idx);
-    else if (cat === "acc") setAcc(idx);
-    else setWeapon(idx);
-    triggerPop();
-  };
+  const onPD = (e: React.PointerEvent<SVGSVGElement>) => { dragX.current = e.clientX; dragAngle.current = angle; svgRef.current?.setPointerCapture(e.pointerId); };
+  const onPM = (e: React.PointerEvent<SVGSVGElement>) => { if (dragX.current === null) return; setAngle(((dragAngle.current + Math.round((e.clientX - dragX.current) / 26)) % 8 + 8) % 8); };
+  const onPU = () => { dragX.current = null; };
 
-  const getSelected = (cat: Category) => {
-    if (cat === "hair") return hair;
-    if (cat === "outfit") return outfit;
-    if (cat === "acc") return acc;
-    return weapon;
-  };
-
-  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    dragStartX.current = e.clientX;
-    dragStartAngle.current = angle;
-    svgRef.current?.setPointerCapture(e.pointerId);
-  };
-
-  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (dragStartX.current === null) return;
-    const newAngle = ((dragStartAngle.current + Math.round((e.clientX - dragStartX.current) / 26)) % 8 + 8) % 8;
-    setAngle(newAngle);
-  };
-
-  const onPointerUp = () => {
-    dragStartX.current = null;
-  };
-
-  const hero = HEROES.find((item) => item.id === selectedHero) ?? HEROES[1];
+  const hero = HEROES.find(h => h.id === heroId) ?? HEROES[1];
   const charSVG = buildCharacterSVG(gender, hair, outfit, acc, weapon, angle, DATA);
   const charName = CHAR_NAMES[gender][outfit] ?? CHAR_NAMES[gender][0];
-  const weaponType = DATA[gender].weapon[weapon].t;
-  const statTag = STAT_MAP[weaponType] ?? STAT_MAP.none;
-  const currentHair = DATA[gender].hair[hair]?.n ?? "Default";
-  const currentOutfit = DATA[gender].outfit[outfit]?.n ?? "Default";
-  const currentAccessory = DATA[gender].acc[acc]?.n ?? "None";
 
   const handleSave = async () => {
-    if (!participant || !selectedHero) return;
-
+    if (!participant || !heroId) return;
     setSaving(true);
     try {
-      const config: AvatarConfig = { heroClass: selectedHero, gender, hair, outfit, acc, weapon };
+      const config: AvatarConfig = { heroClass: heroId, gender, hair, outfit, acc, weapon };
       const { data, error } = await supabase
-        .from("participants")
-        .update({ avatar_config: config })
-        .eq("id", participant.id)
-        .select("*")
-        .single();
-
+        .from("participants").update({ avatar_config: config }).eq("id", participant.id).select("*").single();
       if (error) throw error;
       if (data) setParticipant(data);
       router.push("/");
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to save character");
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
-  if (!participant) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-surface">
-        <LoadingSpinner text="Loading..." />
-      </div>
-    );
-  }
+  if (!participant) return <div className="min-h-screen flex items-center justify-center bg-[#0a0e1a]"><LoadingSpinner text="Loading..." /></div>;
 
+  /* ═══════ render ═══════ */
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_#fffdfd_0%,_#fff4f6_42%,_#ffeaf1_100%)] text-on-surface">
-      <div className="pointer-events-none absolute inset-0 opacity-70">
-        <div className="absolute left-[-8rem] top-[8rem] h-72 w-72 rounded-full bg-[#ffd9e4] blur-3xl" />
-        <div className="absolute bottom-[-3rem] right-[8%] h-64 w-64 rounded-full bg-[#d8f2d6] blur-3xl" />
-        <div className="absolute right-[18%] top-[15%] h-40 w-40 rounded-full bg-[#ffe4b8] blur-3xl" />
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-[#0a0e1a] text-white selection:bg-amber-400/30">
+      <Starfield />
+
+      {/* ambient glow orbs */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-40 top-20 h-[500px] w-[500px] rounded-full bg-[#1a1040] blur-[120px] opacity-70" />
+        <div className="absolute -right-32 top-[40%] h-[400px] w-[400px] rounded-full bg-[#0c2a3a] blur-[100px] opacity-60" />
+        <div className="absolute bottom-0 left-[30%] h-[300px] w-[500px] rounded-full bg-[#1a0a28] blur-[100px] opacity-50" />
       </div>
 
-      <header className="relative z-20 flex h-20 items-center justify-between rounded-b-[2.5rem] bg-white/75 px-5 shadow-[0_18px_50px_rgba(108,39,70,0.08)] backdrop-blur-xl md:px-8 lg:ml-0">
+      {/* ═══ header bar ═══ */}
+      <header className="relative z-30 flex h-16 items-center justify-between border-b border-white/[0.06] bg-[#0d1220]/80 px-5 backdrop-blur-xl md:px-8">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-2xl bg-[linear-gradient(135deg,#f7c0cf,#ff8fa7)] shadow-[0_10px_28px_rgba(201,83,113,0.28)]" />
-          <div>
-            <p className="font-headline text-[1.55rem] font-extrabold tracking-tight text-primary">Maple Academy</p>
-          </div>
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 text-sm font-black text-[#1a0a00] shadow-[0_4px_16px_rgba(251,191,36,0.3)]">M</div>
+          <span className="font-headline text-lg font-bold tracking-tight text-amber-100/90">Maple Academy</span>
         </div>
-
-        <div className="hidden items-center gap-8 md:flex">
-          <button className="font-semibold text-primary/75 transition-transform hover:scale-105">Home</button>
-          <button className="rounded-full bg-primary/10 px-5 py-2 font-bold text-primary shadow-[0_8px_18px_rgba(156,56,83,0.08)]">Quests</button>
-          <button className="font-semibold text-primary/75 transition-transform hover:scale-105">Leaderboard</button>
-        </div>
-
-        <div className="flex items-center gap-2 md:gap-4">
-          <button className="rounded-full p-2 text-primary/80 transition-colors hover:bg-primary/5">
-            <MaterialIcon name="person_search" className="text-[20px]" />
-          </button>
-          <button className="relative rounded-full p-2 text-primary/80 transition-colors hover:bg-primary/5">
-            <MaterialIcon name="notifications" className="text-[20px]" />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" />
-          </button>
-          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border-2 border-primary/15 bg-[linear-gradient(135deg,#ffe0eb,#fff)] text-sm font-black text-primary shadow-[0_10px_24px_rgba(156,56,83,0.12)]">
-            {(participant.name || "A").slice(0, 1).toUpperCase()}
+        <div className="flex items-center gap-4">
+          <span className="hidden text-xs font-semibold text-white/40 md:block">Server: Maple World 1</span>
+          <div className="h-5 w-px bg-white/10 hidden md:block" />
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+            <span className="text-xs font-bold text-emerald-300/80">{participant.name || "Adventurer"}</span>
           </div>
         </div>
       </header>
 
-      <div className="relative z-10 flex min-h-[calc(100vh-5rem)]">
-        <aside className="hidden w-[270px] shrink-0 flex-col rounded-r-[2.75rem] border-r border-white/30 bg-white/55 px-6 pb-8 pt-6 shadow-[0_24px_70px_rgba(108,39,70,0.08)] backdrop-blur-xl lg:flex">
-          <div className="mb-10 mt-4 rounded-[2rem] bg-white/75 p-4 shadow-[0_16px_38px_rgba(108,39,70,0.08)]">
-            <div className="mb-4 overflow-hidden rounded-[1.5rem] bg-[linear-gradient(180deg,#3c465f,#151b27)] p-3">
-              <div className="mx-auto flex h-32 w-24 items-center justify-center rounded-[1.25rem] bg-[radial-gradient(circle_at_top,_#7082a2,_#1b2231_72%)]">
-                <svg
-                  viewBox="0 0 200 245"
-                  width={82}
-                  height={102}
-                  dangerouslySetInnerHTML={{ __html: `<g>${buildCharacterSVG("m", 2, 0, 5, 0, 1, DATA)}</g>` }}
-                />
-              </div>
-            </div>
-            <p className="text-lg font-extrabold text-primary">{participant.name || "Employee Hero"}</p>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary/70">Level 1 Novice</p>
-          </div>
+      {/* ═══ main body ═══ */}
+      <div className="relative z-10 flex flex-1 flex-col">
 
-          <nav className="space-y-2">
-            {SIDE_NAV.map((item) => (
-              <div
-                key={item.label}
-                className={`flex items-center gap-4 rounded-full px-5 py-3 text-sm font-semibold transition-all ${
-                  item.active
-                    ? "bg-[linear-gradient(135deg,#ff5f81,#ff6f92)] text-white shadow-[0_14px_30px_rgba(255,95,129,0.35)]"
-                    : "text-primary/75 hover:bg-white/70"
-                }`}
-              >
-                <MaterialIcon name={item.icon} className="text-[18px]" fill={item.active} />
-                <span>{item.label}</span>
-              </div>
-            ))}
-          </nav>
-
-          <div className="mt-auto space-y-3 pt-10">
-            <button className="w-full rounded-full bg-white py-4 text-sm font-black text-primary shadow-[0_12px_30px_rgba(108,39,70,0.1)] transition-transform hover:-translate-y-0.5">
-              Join a Guild
-            </button>
-            <button className="flex w-full items-center gap-4 rounded-full px-5 py-3 text-sm font-semibold text-primary/75 transition-colors hover:bg-white/70">
-              <MaterialIcon name="settings" className="text-[18px]" />
-              <span>Settings</span>
-            </button>
-            <button className="flex w-full items-center gap-4 rounded-full px-5 py-3 text-sm font-semibold text-primary/75 transition-colors hover:bg-white/70">
-              <MaterialIcon name="logout" className="text-[18px]" />
-              <span>Logout</span>
-            </button>
-          </div>
-        </aside>
-
-        <main className="flex-1 px-4 py-8 md:px-8 lg:px-10 lg:py-10">
-          <AnimatePresence mode="wait">
-            {!selectedHero ? (
-              <motion.section
-                key="hero-selection"
-                initial={{ opacity: 0, y: 24 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -24 }}
-                className="mx-auto max-w-7xl"
-              >
-                <div className="mb-14 text-center">
-                  <span className="inline-flex rounded-full bg-primary/12 px-4 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-primary">
-                    Step 2: Creation
-                  </span>
-                  <h1 className="mt-5 font-headline text-5xl font-black tracking-tight text-on-surface md:text-6xl">
-                    Choose Your Hero
+        <AnimatePresence mode="wait">
+          {!heroId ? (
+            /* ════════════ STAGE 1 — CLASS SELECTION ════════════ */
+            <motion.div
+              key="select"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex flex-1 flex-col"
+            >
+              {/* title area */}
+              <div className="relative px-4 pt-10 pb-6 text-center md:pt-14">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                >
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.3em] text-amber-400/70">Step 1 of 2</p>
+                  <h1 className="font-headline text-4xl font-black tracking-tight text-white md:text-5xl lg:text-6xl">
+                    Choose Your <span className="bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 bg-clip-text text-transparent">Class</span>
                   </h1>
-                  <p className="mx-auto mt-4 max-w-2xl text-lg font-medium leading-8 text-on-surface-variant">
-                    Every legend begins with a single choice. Pick a role first, then refine the look using the existing Maple avatar builder.
+                  <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-white/45">
+                    Every adventure begins with a choice. Select your class wisely — it will shape your destiny in Maple Academy.
                   </p>
+                </motion.div>
+              </div>
+
+              {/* gender toggle */}
+              <div className="flex justify-center pb-8">
+                <div className="inline-flex rounded-full border border-white/[0.08] bg-white/[0.03] p-1 backdrop-blur-sm">
+                  {(["f", "m"] as Gender[]).map(g => (
+                    <button key={g} type="button" onClick={() => setGender(g)}
+                      className={`rounded-full px-5 py-1.5 text-xs font-bold transition-all ${gender === g ? "bg-amber-400/20 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.15)]" : "text-white/35 hover:text-white/55"}`}
+                    >
+                      {g === "f" ? "♀ Female" : "♂ Male"}
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                <div className="grid gap-8 lg:grid-cols-3">
-                  {HEROES.map((item) => {
-                    const preview = HERO_PRESETS[item.id][gender];
-                    const previewSvg = buildCharacterSVG(gender, preview.hair, preview.outfit, preview.acc, preview.weapon, 1, DATA);
+              {/* hero cards */}
+              <div className="mx-auto grid w-full max-w-5xl flex-1 gap-5 px-4 pb-10 md:grid-cols-3 md:px-8">
+                {HEROES.map((h, idx) => {
+                  const pr = PRESETS[h.id][gender];
+                  const svg = buildCharacterSVG(gender, pr.hair, pr.outfit, pr.acc, pr.weapon, 1, DATA);
 
-                    return (
-                      <motion.button
-                        key={item.id}
-                        type="button"
-                        whileHover={{ y: -8, scale: 1.01 }}
-                        whileTap={{ scale: 0.985 }}
-                        onClick={() => handleHeroSelect(item.id)}
-                        className="group relative overflow-hidden rounded-[2.25rem] border border-white/60 bg-white/78 p-7 text-left shadow-[0_18px_60px_rgba(108,39,70,0.08)] backdrop-blur-xl"
-                        style={{ boxShadow: `0 22px 70px ${item.glow}` }}
-                      >
-                        <div className="absolute inset-x-0 top-0 h-32 opacity-60" style={{ background: `linear-gradient(180deg, ${item.surface}, rgba(255,255,255,0))` }} />
-                        {item.badge ? (
-                          <span className="absolute right-6 top-6 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-white" style={{ backgroundColor: item.accent }}>
-                            {item.badge}
-                          </span>
-                        ) : null}
+                  return (
+                    <motion.button
+                      key={h.id}
+                      type="button"
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 + idx * 0.1 }}
+                      whileHover={{ y: -8, scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => selectHero(h.id)}
+                      className="group relative flex flex-col items-center rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 pt-6 text-center backdrop-blur-sm transition-all hover:border-white/[0.15] hover:shadow-[0_20px_60px_rgba(0,0,0,0.3)]"
+                    >
+                      {/* glow on hover */}
+                      <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity group-hover:opacity-100" style={{ boxShadow: `inset 0 1px 0 ${h.accent}44, 0 0 60px ${h.glow}` }} />
 
-                        <div className="relative z-10 pt-2">
-                          <div className="mx-auto mb-6 flex h-40 w-40 items-center justify-center rounded-[1.8rem] border border-white/70 bg-white shadow-[0_18px_45px_rgba(108,39,70,0.1)]">
-                            <svg viewBox="0 0 200 245" width={124} height={154} dangerouslySetInnerHTML={{ __html: `<g>${previewSvg}</g>` }} />
-                          </div>
+                      {h.badge && (
+                        <span className="absolute -top-2.5 right-4 z-20 rounded-full border border-amber-400/30 bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-[0_4px_12px_rgba(251,191,36,0.3)]">
+                          {h.badge}
+                        </span>
+                      )}
 
-                          <div className="mb-3 flex items-center justify-center gap-2 text-center">
-                            <MaterialIcon name={item.icon} className="text-[20px]" />
-                            <p className="text-sm font-black uppercase tracking-[0.18em]" style={{ color: item.accent }}>
-                              {item.subtitle}
-                            </p>
-                          </div>
-
-                          <h2 className="text-center text-4xl font-black tracking-tight text-on-surface">{item.name}</h2>
-                          <p className="mx-auto mt-4 max-w-[19rem] text-center text-sm font-medium leading-6 text-on-surface-variant">
-                            {item.description}
-                          </p>
-
-                          <div className="mt-7 space-y-4">
-                            {[
-                              ["Strength", item.stats.str],
-                              ["Magic", item.stats.mag],
-                              ["Agility", item.stats.agi],
-                            ].map(([label, value]) => (
-                              <div key={label} className="flex items-center justify-between gap-4">
-                                <span className="text-sm font-bold text-on-surface-variant">{label}</span>
-                                <div className="flex gap-1">
-                                  {Array.from({ length: 5 }).map((_, idx) => (
-                                    <MaterialIcon
-                                      key={idx}
-                                      name="star"
-                                      fill={idx < Number(value)}
-                                      className={`text-[18px] ${idx < Number(value) ? "text-primary" : "text-outline-variant"}`}
-                                    />
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-
-                          <div className="mt-8 rounded-full px-6 py-4 text-center text-lg font-black text-white shadow-[0_16px_34px_rgba(156,56,83,0.2)] transition-transform group-hover:-translate-y-0.5" style={{ background: `linear-gradient(135deg, ${item.accent}, #ff8aa8)` }}>
-                            Select Hero
-                          </div>
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </motion.section>
-            ) : (
-              <motion.section
-                key="hero-customization"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="mx-auto max-w-7xl"
-              >
-                <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedHero(null)}
-                    className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-white/75 px-5 py-3 text-sm font-bold text-primary shadow-[0_10px_30px_rgba(108,39,70,0.06)]"
-                  >
-                    <MaterialIcon name="arrow_back" className="text-[18px]" />
-                    <span>Back to Stage 1</span>
-                  </button>
-
-                  <div className="flex items-center gap-3 rounded-full bg-white/75 px-5 py-3 text-sm font-semibold text-on-surface-variant shadow-[0_10px_30px_rgba(108,39,70,0.06)]">
-                    <MaterialIcon name="info" className="text-[18px] text-primary" fill />
-                    <span>You can still refine cosmetics later. Class identity is saved with this avatar.</span>
-                  </div>
-                </div>
-
-                <div className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
-                  <section className="relative overflow-hidden rounded-[2.5rem] border border-white/60 bg-white/80 p-8 shadow-[0_22px_70px_rgba(108,39,70,0.09)] backdrop-blur-xl md:p-10">
-                    <div className="absolute inset-x-0 top-0 h-40 opacity-65" style={{ background: `linear-gradient(180deg, ${hero.surface}, rgba(255,255,255,0))` }} />
-                    <div className="relative z-10">
-                      <div className="mb-8 flex flex-wrap items-start justify-between gap-6">
-                        <div>
-                          <span className="inline-flex rounded-full px-4 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-white" style={{ backgroundColor: hero.accent }}>
-                            {hero.name}
-                          </span>
-                          <h2 className="mt-4 text-4xl font-black tracking-tight text-on-surface md:text-5xl">Build Your Legend</h2>
-                          <p className="mt-3 max-w-xl text-base font-medium leading-7 text-on-surface-variant">
-                            Start from the {hero.name.toLowerCase()} archetype, then fine-tune the appearance with the parts already supported by the current Maple renderer.
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-2 rounded-full bg-white px-3 py-2 shadow-[0_12px_28px_rgba(108,39,70,0.08)]">
-                          <button
-                            type="button"
-                            onClick={() => setGender("f")}
-                            className={`rounded-full px-4 py-2 text-sm font-black transition-all ${gender === "f" ? "text-white shadow-[0_10px_24px_rgba(212,83,126,0.28)]" : "text-primary/65"}`}
-                            style={gender === "f" ? { background: "linear-gradient(135deg,#e06d93,#ff92aa)" } : undefined}
-                          >
-                            Female
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setGender("m")}
-                            className={`rounded-full px-4 py-2 text-sm font-black transition-all ${gender === "m" ? "text-white shadow-[0_10px_24px_rgba(91,143,212,0.28)]" : "text-primary/65"}`}
-                            style={gender === "m" ? { background: "linear-gradient(135deg,#679bdd,#81b7ff)" } : undefined}
-                          >
-                            Male
-                          </button>
-                        </div>
+                      {/* character platform */}
+                      <div className="relative mb-5 flex h-44 w-44 items-end justify-center">
+                        <div className="absolute bottom-0 left-1/2 h-4 w-32 -translate-x-1/2 rounded-full blur-xl" style={{ backgroundColor: h.glow }} />
+                        <div className="absolute bottom-0 left-1/2 h-3 w-28 -translate-x-1/2 rounded-full border border-white/10" style={{ background: `radial-gradient(ellipse, ${h.accent}33, transparent 70%)` }} />
+                        <svg viewBox="0 0 200 245" width={130} height={162} className="relative z-10 animate-hero-float drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]" dangerouslySetInnerHTML={{ __html: `<g>${svg}</g>` }} />
                       </div>
 
-                      <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-                        <div className="rounded-[2rem] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(255,245,248,0.92))] p-6 shadow-[0_18px_50px_rgba(108,39,70,0.08)]">
-                          <div className="relative mb-4 overflow-hidden rounded-[1.75rem] border border-white/60 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.98),_rgba(255,233,239,0.92)_68%,_rgba(255,214,226,0.9)_100%)] px-4 py-6">
-                            <div className="absolute left-1/2 top-1/2 h-36 w-36 -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl" style={{ backgroundColor: hero.glow }} />
-                            <svg
-                              ref={svgRef}
-                              viewBox="0 0 200 245"
-                              width={230}
-                              height={280}
-                              className={`relative z-10 mx-auto block cursor-grab select-none active:cursor-grabbing ${pop ? "animate-maple-pop" : ""}`}
-                              onPointerDown={onPointerDown}
-                              onPointerMove={onPointerMove}
-                              onPointerUp={onPointerUp}
-                              dangerouslySetInnerHTML={{ __html: `<g>${charSVG}</g>` }}
-                            />
+                      {/* class icon */}
+                      <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: `${h.accent}22`, boxShadow: `0 0 16px ${h.accent}22` }}>
+                        <MaterialIcon name={h.icon} className="text-base" style={{ color: h.accent }} />
+                      </div>
+
+                      <p className="text-[10px] font-bold uppercase tracking-[0.25em]" style={{ color: h.accent }}>{h.title}</p>
+                      <h3 className="mt-1 text-2xl font-black text-white">{h.name}</h3>
+                      <p className="mt-2 text-[11px] leading-relaxed text-white/40">{h.desc}</p>
+
+                      {/* stats */}
+                      <div className="mt-5 w-full space-y-2.5">
+                        {(Object.entries(h.stats) as [string, number][]).map(([k, v]) => (
+                          <div key={k} className="flex items-center gap-3">
+                            <span className="w-8 text-right text-[10px] font-black" style={{ color: STAT_COLORS[k] }}>{STAT_LABELS[k]}</span>
+                            <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${v * 20}%` }}
+                                transition={{ delay: 0.4 + idx * 0.1, duration: 0.6 }}
+                                className="h-full rounded-full"
+                                style={{ background: `linear-gradient(90deg, ${STAT_COLORS[k]}, ${STAT_COLORS[k]}88)`, boxShadow: `0 0 8px ${STAT_COLORS[k]}44` }}
+                              />
+                            </div>
+                            <span className="w-4 text-[10px] font-bold text-white/30">{v}</span>
                           </div>
+                        ))}
+                      </div>
 
-                          <div className="flex items-center justify-center gap-3">
-                            <button type="button" onClick={() => rotate(-1)} className="grid h-9 w-9 place-items-center rounded-full border border-primary/10 bg-white text-primary shadow-[0_10px_20px_rgba(108,39,70,0.05)]">
-                              <MaterialIcon name="chevron_left" className="text-[20px]" />
-                            </button>
-                            <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 shadow-[0_10px_22px_rgba(108,39,70,0.05)]">
-                              {Array.from({ length: 8 }).map((_, i) => (
-                                <button
-                                  key={i}
-                                  type="button"
-                                  onClick={() => {
-                                    setAngle(i);
-                                    triggerPop();
-                                  }}
-                                  className={`rounded-full transition-all ${i === angle ? "h-3 w-7" : "h-2.5 w-2.5 bg-primary/20"}`}
-                                  style={i === angle ? { backgroundColor: hero.accent } : undefined}
-                                />
-                              ))}
-                            </div>
-                            <button type="button" onClick={() => rotate(1)} className="grid h-9 w-9 place-items-center rounded-full border border-primary/10 bg-white text-primary shadow-[0_10px_20px_rgba(108,39,70,0.05)]">
-                              <MaterialIcon name="chevron_right" className="text-[20px]" />
-                            </button>
-                          </div>
+                      {/* select button */}
+                      <div className="mt-6 w-full rounded-xl border py-3 text-sm font-black transition-all" style={{
+                        borderColor: `${h.accent}33`,
+                        background: `linear-gradient(135deg, ${h.accent}15, ${h.accent}08)`,
+                        color: h.accent,
+                      }}>
+                        Select Class
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </div>
 
-                          <p className="mt-3 text-center text-xs font-bold uppercase tracking-[0.18em] text-primary/60">{ANGLE_LABELS[angle]}</p>
-                          <h3 className="mt-2 text-center text-3xl font-black text-on-surface">{charName}</h3>
+              {/* footer info */}
+              <div className="border-t border-white/[0.05] bg-white/[0.02] py-4 text-center">
+                <p className="text-xs text-white/25">
+                  <MaterialIcon name="info" className="mr-1 inline text-[14px] align-text-bottom text-amber-400/40" fill />
+                  You can change your class later at <span className="font-bold text-amber-400/50">Level 30</span>
+                </p>
+              </div>
+            </motion.div>
 
-                          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                            <div className="rounded-[1.2rem] bg-white px-4 py-3 text-center shadow-[0_10px_22px_rgba(108,39,70,0.05)]">
-                              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/55">Class</p>
-                              <p className="mt-1 text-sm font-bold text-on-surface">{hero.name}</p>
-                            </div>
-                            <div className="rounded-[1.2rem] bg-white px-4 py-3 text-center shadow-[0_10px_22px_rgba(108,39,70,0.05)]">
-                              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/55">Stat Focus</p>
-                              <p className="mt-1 text-sm font-bold text-on-surface">{statTag}</p>
-                            </div>
-                            <div className="rounded-[1.2rem] bg-white px-4 py-3 text-center shadow-[0_10px_22px_rgba(108,39,70,0.05)]">
-                              <p className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/55">Stage</p>
-                              <p className="mt-1 text-sm font-bold text-on-surface">Creation</p>
-                            </div>
-                          </div>
-                        </div>
+          ) : (
+            /* ════════════ STAGE 2 — CUSTOMIZATION ════════════ */
+            <motion.div
+              key="customize"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-1 flex-col lg:flex-row"
+            >
+              {/* left — big preview area */}
+              <div className="relative flex flex-1 flex-col items-center justify-center px-4 py-8 lg:py-0">
+                {/* back button */}
+                <button
+                  type="button"
+                  onClick={() => { setHeroId(null); setCustomOpen(false); }}
+                  className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-4 py-2 text-xs font-bold text-white/50 backdrop-blur-sm transition-colors hover:border-white/[0.15] hover:text-white/70 lg:left-8 lg:top-8"
+                >
+                  <MaterialIcon name="arrow_back" className="text-sm" />
+                  Back
+                </button>
 
-                        <div className="space-y-6">
-                          <div className="grid gap-4 sm:grid-cols-3">
-                            <InfoChip label="Hair" value={currentHair} icon="palette" />
-                            <InfoChip label="Outfit" value={currentOutfit} icon="checkroom" />
-                            <InfoChip label="Accessory" value={currentAccessory} icon="auto_awesome" />
-                          </div>
+                {/* class badge */}
+                <div className="mb-4 flex items-center gap-2">
+                  <div className="flex h-6 w-6 items-center justify-center rounded" style={{ background: `${hero.accent}22` }}>
+                    <MaterialIcon name={hero.icon} className="text-sm" style={{ color: hero.accent }} />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: hero.accent }}>{hero.title}</span>
+                </div>
 
-                          <div className="rounded-[2rem] border border-white/70 bg-white/88 p-6 shadow-[0_18px_50px_rgba(108,39,70,0.08)]">
-                            <div className="mb-4 flex items-center justify-between gap-4">
-                              <div>
-                                <p className="text-xs font-black uppercase tracking-[0.18em] text-primary/60">Customization</p>
-                                <h3 className="mt-2 text-2xl font-black text-on-surface">Refine the Details</h3>
-                              </div>
-                              <div className="rounded-full bg-primary/8 px-4 py-2 text-xs font-bold text-primary">
-                                {QUICK_OPTIONS.outfits[Math.min(outfit, QUICK_OPTIONS.outfits.length - 1)]}
-                              </div>
-                            </div>
+                {/* character preview */}
+                <div className="relative">
+                  <div className="absolute inset-0 -m-6 rounded-full blur-2xl" style={{ background: `radial-gradient(circle, ${hero.glow}, transparent 70%)` }} />
+                  <div className="absolute -bottom-4 left-1/2 h-6 w-40 -translate-x-1/2 rounded-full blur-lg" style={{ backgroundColor: hero.glow }} />
+                  <div className="absolute -bottom-2 left-1/2 h-3 w-32 -translate-x-1/2 rounded-full border border-white/10" style={{ background: `radial-gradient(ellipse, ${hero.accent}44, transparent 70%)` }} />
 
-                            <div className="grid grid-cols-4 gap-2">
-                              {TABS.map((item) => (
-                                <button
-                                  key={item}
-                                  type="button"
-                                  onClick={() => setTab(item)}
-                                  className={`rounded-[1.25rem] border px-3 py-3 text-center transition-all ${
-                                    tab === item
-                                      ? "border-primary/25 bg-primary/10 text-primary shadow-[0_12px_24px_rgba(156,56,83,0.1)]"
-                                      : "border-primary/10 bg-white text-on-surface-variant hover:bg-surface-container-low"
-                                  }`}
-                                >
-                                  <div className="text-lg leading-none">{TAB_LABELS[item].icon}</div>
-                                  <div className="mt-1 text-[11px] font-bold">{TAB_LABELS[item].label}</div>
-                                </button>
-                              ))}
-                            </div>
+                  <svg
+                    ref={svgRef}
+                    viewBox="0 0 200 245"
+                    width={220}
+                    height={270}
+                    className={`relative z-10 mx-auto block cursor-grab select-none drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] active:cursor-grabbing ${pop ? "animate-maple-pop" : ""}`}
+                    onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU}
+                    dangerouslySetInnerHTML={{ __html: `<g>${charSVG}</g>` }}
+                  />
+                </div>
 
-                            <p className="mt-4 text-sm font-medium text-on-surface-variant">{TAB_LABELS[tab].sublabel}</p>
+                {/* name & rotation */}
+                <p className="mt-6 text-2xl font-black text-white">{charName}</p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.3em] text-white/30">{ANGLE_LABELS[angle]} View</p>
 
-                            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                              {DATA[gender][tab].map((item, index) => {
-                                const selected = getSelected(tab) === index;
+                {/* rotation controls */}
+                <div className="mt-4 flex items-center gap-3">
+                  <button type="button" onClick={() => rotate(-1)} className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white/50 transition-colors hover:border-white/[0.15] hover:text-white/70">
+                    <MaterialIcon name="chevron_left" className="text-lg" />
+                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <button key={i} type="button" onClick={() => { setAngle(i); triggerPop(); }}
+                        className={`rounded-full transition-all ${i === angle ? "h-2.5 w-5" : "h-1.5 w-1.5 bg-white/15 hover:bg-white/25"}`}
+                        style={i === angle ? { backgroundColor: hero.accent, boxShadow: `0 0 8px ${hero.accent}66` } : undefined}
+                      />
+                    ))}
+                  </div>
+                  <button type="button" onClick={() => rotate(1)} className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white/50 transition-colors hover:border-white/[0.15] hover:text-white/70">
+                    <MaterialIcon name="chevron_right" className="text-lg" />
+                  </button>
+                </div>
 
-                                return (
-                                  <motion.button
-                                    key={`${gender}-${tab}-${index}`}
-                                    type="button"
-                                    whileTap={{ scale: 0.97 }}
-                                    onClick={() => pick(tab, index)}
-                                    className={`rounded-[1.4rem] border p-3 text-left transition-all ${
-                                      selected
-                                        ? "border-primary/25 bg-primary/10 shadow-[0_16px_28px_rgba(156,56,83,0.1)]"
-                                        : "border-primary/10 bg-white hover:-translate-y-0.5 hover:shadow-[0_14px_28px_rgba(108,39,70,0.06)]"
-                                    }`}
-                                  >
-                                    <div className="mb-3 h-12 w-12 rounded-[1rem] border border-black/5" style={{ background: `linear-gradient(135deg, ${item.c} 50%, ${item.c2} 50%)` }} />
-                                    <p className="text-sm font-bold text-on-surface">{item.n}</p>
-                                    <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.14em] text-on-surface-variant">{item.t}</p>
-                                  </motion.button>
-                                );
-                              })}
-                            </div>
-                          </div>
+                {/* stat bars under character */}
+                <div className="mt-8 w-full max-w-xs space-y-2">
+                  {(Object.entries(hero.stats) as [string, number][]).map(([k, v]) => (
+                    <div key={k} className="flex items-center gap-3">
+                      <span className="w-8 text-right text-[10px] font-black" style={{ color: STAT_COLORS[k] }}>{STAT_LABELS[k]}</span>
+                      <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${v * 20}%`, background: `linear-gradient(90deg, ${STAT_COLORS[k]}, ${STAT_COLORS[k]}88)`, boxShadow: `0 0 8px ${STAT_COLORS[k]}44` }} />
+                      </div>
+                      <span className="w-8 text-[10px] font-bold text-white/30">{v}/5</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-                          <div className="rounded-[2rem] border border-white/70 bg-white/88 p-6 shadow-[0_18px_50px_rgba(108,39,70,0.08)]">
-                            <div className="mb-5 flex items-center gap-3">
-                              <MaterialIcon name="star" className="text-[22px] text-primary" fill />
-                              <h3 className="text-xl font-black text-on-surface">Hero Affinity</h3>
-                            </div>
-                            <div className="space-y-4">
-                              {[
-                                ["Strength", hero.stats.str],
-                                ["Magic", hero.stats.mag],
-                                ["Agility", hero.stats.agi],
-                              ].map(([label, value]) => (
-                                <div key={label} className="flex items-center justify-between gap-4">
-                                  <span className="text-sm font-bold text-on-surface-variant">{label}</span>
-                                  <div className="flex gap-1">
-                                    {Array.from({ length: 5 }).map((_, idx) => (
-                                      <span
-                                        key={idx}
-                                        className={`h-2.5 rounded-full ${idx < Number(value) ? "w-8" : "w-4 bg-primary/10"}`}
-                                        style={idx < Number(value) ? { backgroundColor: hero.accent } : undefined}
-                                      />
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+              {/* right — customization panel */}
+              <aside className="relative w-full border-l border-white/[0.06] bg-[#0d1220]/60 backdrop-blur-xl lg:w-[380px] lg:max-w-[380px]">
+                <div className="flex h-full flex-col overflow-y-auto">
+                  {/* panel header */}
+                  <div className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#0d1220]/90 px-6 py-5 backdrop-blur-xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-lg font-black text-white">Customize</h2>
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/30">Step 2 of 2</p>
+                      </div>
+                      <button type="button" onClick={() => setCustomOpen(false)} className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white/40 hover:text-white/60 lg:hidden">
+                        <MaterialIcon name="close" className="text-base" />
+                      </button>
+                    </div>
+                  </div>
 
-                            <div className="mt-6 flex flex-wrap gap-3 text-xs font-bold uppercase tracking-[0.14em] text-primary/60">
-                              <span className="rounded-full bg-primary/8 px-4 py-2">Hair: {currentHair}</span>
-                              <span className="rounded-full bg-primary/8 px-4 py-2">Outfit: {QUICK_OPTIONS.outfits[Math.min(outfit, QUICK_OPTIONS.outfits.length - 1)]}</span>
-                              <span className="rounded-full bg-primary/8 px-4 py-2">Accessory: {QUICK_OPTIONS.accessories[Math.min(acc, QUICK_OPTIONS.accessories.length - 1)]}</span>
-                            </div>
-                          </div>
-
-                          <motion.button
-                            type="button"
-                            whileHover={{ scale: 1.01 }}
-                            whileTap={{ scale: 0.985 }}
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="relative w-full overflow-hidden rounded-full px-8 py-5 text-lg font-black text-white shadow-[0_20px_36px_rgba(156,56,83,0.24)] transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
-                            style={{ background: `linear-gradient(135deg, ${hero.accent}, #ff8ea8)` }}
+                  <div className="flex-1 space-y-6 p-6">
+                    {/* gender toggle */}
+                    <div>
+                      <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/25">Gender</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["f", "m"] as Gender[]).map(g => (
+                          <button key={g} type="button" onClick={() => setGender(g)}
+                            className={`rounded-xl border py-2.5 text-xs font-bold transition-all ${
+                              gender === g
+                                ? "border-amber-400/30 bg-amber-400/10 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.1)]"
+                                : "border-white/[0.06] bg-white/[0.02] text-white/35 hover:border-white/[0.1] hover:text-white/50"
+                            }`}
                           >
-                            <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.3),rgba(255,255,255,0))]" />
-                            <span className="relative z-10 flex items-center justify-center gap-2">
-                              {saving ? (
-                                <>
-                                  <MaterialIcon name="progress_activity" className="animate-spin text-[22px]" />
-                                  Saving Your Hero...
-                                </>
-                              ) : (
-                                <>
-                                  <MaterialIcon name="celebration" className="text-[22px]" fill />
-                                  Complete Creation
-                                </>
-                              )}
-                            </span>
-                          </motion.button>
-                        </div>
+                            {g === "f" ? "♀ Female" : "♂ Male"}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  </section>
+
+                    {/* category tabs */}
+                    <div>
+                      <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/25">Category</p>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {TABS.map(t => (
+                          <button key={t} type="button" onClick={() => setTab(t)}
+                            className={`flex flex-col items-center gap-1 rounded-xl border py-3 text-center transition-all ${
+                              tab === t
+                                ? "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                                : "border-white/[0.05] bg-white/[0.02] text-white/30 hover:border-white/[0.1] hover:text-white/45"
+                            }`}
+                          >
+                            <span className="text-sm leading-none">{TAB_LABELS[t].icon}</span>
+                            <span className="text-[9px] font-bold">{TAB_LABELS[t].label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* items grid */}
+                    <div>
+                      <p className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/25">{TAB_LABELS[tab].sublabel}</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {DATA[gender][tab].map((item, idx) => {
+                          const isActive = sel(tab) === idx;
+                          return (
+                            <motion.button
+                              key={`${gender}-${tab}-${idx}`}
+                              type="button"
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => pick(tab, idx)}
+                              className={`flex flex-col items-center gap-1.5 rounded-xl border p-3 transition-all ${
+                                isActive
+                                  ? "border-amber-400/30 bg-amber-400/10 shadow-[0_0_16px_rgba(251,191,36,0.08)]"
+                                  : "border-white/[0.05] bg-white/[0.02] hover:border-white/[0.1]"
+                              }`}
+                            >
+                              <div className="h-9 w-9 rounded-lg border border-white/10" style={{ background: `linear-gradient(135deg, ${item.c} 50%, ${item.c2} 50%)` }} />
+                              <span className={`text-[9px] font-bold leading-tight ${isActive ? "text-amber-300" : "text-white/35"}`}>{item.n}</span>
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* sticky save */}
+                  <div className="sticky bottom-0 border-t border-white/[0.06] bg-[#0d1220]/90 p-5 backdrop-blur-xl">
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="relative w-full overflow-hidden rounded-xl border py-3.5 text-sm font-black text-white transition-opacity disabled:opacity-40"
+                      style={{
+                        borderColor: `${hero.accent}44`,
+                        background: `linear-gradient(135deg, ${hero.accent}33, ${hero.accent}11)`,
+                        boxShadow: `0 0 24px ${hero.accent}22, inset 0 1px 0 ${hero.accent}33`,
+                      }}
+                    >
+                      <span className="relative z-10 flex items-center justify-center gap-2">
+                        {saving ? (
+                          <><MaterialIcon name="progress_activity" className="animate-spin text-base" /> Saving...</>
+                        ) : (
+                          <><MaterialIcon name="celebration" className="text-base" fill /> Save & Begin Adventure</>
+                        )}
+                      </span>
+                    </motion.button>
+                    <p className="mt-2 text-center text-[10px] text-white/20">You can customize again later</p>
+                  </div>
                 </div>
-              </motion.section>
-            )}
-          </AnimatePresence>
-        </main>
+              </aside>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
+      {/* ═══ animations ═══ */}
       <style jsx global>{`
         @keyframes maple-pop {
           0% { transform: scale(0.94); }
           60% { transform: scale(1.03); }
           100% { transform: scale(1); }
         }
+        .animate-maple-pop { animation: maple-pop 0.22s ease; }
 
-        .animate-maple-pop {
-          animation: maple-pop 0.22s ease;
+        @keyframes hero-float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
         }
+        .animate-hero-float { animation: hero-float 4s ease-in-out infinite; }
+
+        @keyframes twinkle {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.9; }
+        }
+        .animate-twinkle { animation: twinkle 3s ease-in-out infinite; }
+
+        @keyframes shooting-star {
+          0% { transform: translateX(-100px) translateY(0) rotate(-15deg); opacity: 0; }
+          10% { opacity: 1; }
+          40% { opacity: 0; }
+          100% { transform: translateX(calc(100vw + 100px)) translateY(120px) rotate(-15deg); opacity: 0; }
+        }
+        .animate-shooting-star { animation: shooting-star 8s ease-in-out infinite; }
 
         @keyframes blink {
           0%, 88%, 100% { transform: scaleY(1); }
           91%, 96% { transform: scaleY(0.06); }
         }
-
         .el { transform-origin: 82px 84px; animation: blink 3.8s ease-in-out infinite; }
         .er { transform-origin: 118px 84px; animation: blink 3.8s ease-in-out infinite; }
         .eq { transform-origin: 86px 84px; animation: blink 3.8s ease-in-out 0.4s infinite; }
         .eqr { transform-origin: 118px 84px; animation: blink 3.8s ease-in-out infinite; }
         .es { transform-origin: 119px 80px; animation: blink 4.2s ease-in-out 1s infinite; }
       `}</style>
-    </div>
-  );
-}
-
-function InfoChip({ label, value, icon }: { label: string; value: string; icon: string }) {
-  return (
-    <div className="rounded-[1.4rem] border border-white/70 bg-white px-4 py-4 shadow-[0_12px_28px_rgba(108,39,70,0.06)]">
-      <div className="mb-2 flex items-center gap-2 text-primary">
-        <MaterialIcon name={icon} className="text-[18px]" fill />
-        <span className="text-[11px] font-black uppercase tracking-[0.16em] text-primary/65">{label}</span>
-      </div>
-      <p className="text-sm font-bold text-on-surface">{value}</p>
     </div>
   );
 }
