@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
@@ -14,6 +14,7 @@ import {
 } from "@/utils/characterData";
 import { buildCharacterSVG } from "@/utils/characterRenderer";
 import type { AvatarConfig } from "@/lib/database.types";
+import CharacterCylinder3D from "@/components/ui/CharacterCylinder3D";
 
 /* ═══════════════ types & constants ═══════════════ */
 
@@ -74,6 +75,105 @@ const PRESETS: Record<HeroClass, Record<Gender, { hair: number; outfit: number; 
 const STAT_LABELS: Record<string, string> = { str: "STR", mag: "INT", agi: "AGI" };
 const STAT_COLORS: Record<string, string> = { str: "#ff6b6b", mag: "#a78bfa", agi: "#4ade80" };
 
+/** build all 8 angle frames for the cylinder */
+function buildAllFrames(gender: Gender, hair: number, outfit: number, acc: number, weapon: number): string[] {
+  return Array.from({ length: 8 }, (_, a) => buildCharacterSVG(gender, hair, outfit, acc, weapon, a, DATA));
+}
+
+/* ═══════════════ HeroCard sub-component ═══════════════ */
+interface HeroCardProps {
+  h: HeroDef;
+  idx: number;
+  gender: Gender;
+  onSelect: () => void;
+}
+
+function HeroCard({ h, idx, gender, onSelect }: HeroCardProps) {
+  const pr = PRESETS[h.id][gender];
+  const allFrames = buildAllFrames(gender, pr.hair, pr.outfit, pr.acc, pr.weapon);
+  const [cardViewAngle, setCardViewAngle] = useState(1);
+
+  return (
+    <motion.div
+      key={h.id}
+      className="group relative flex flex-col items-center rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 pt-6 text-center backdrop-blur-sm transition-all hover:border-white/[0.15] hover:shadow-[0_20px_60px_rgba(0,0,0,0.3)]"
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 + idx * 0.1 }}
+      whileHover={{ y: -8, scale: 1.02 }}
+    >
+      {/* glow on hover */}
+      <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity group-hover:opacity-100" style={{ boxShadow: `inset 0 1px 0 ${h.accent}44, 0 0 60px ${h.glow}` }} />
+
+      {h.badge && (
+        <span className="absolute -top-2.5 right-4 z-20 rounded-full border border-amber-400/30 bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-[0_4px_12px_rgba(251,191,36,0.3)]">
+          {h.badge}
+        </span>
+      )}
+
+      {/* Seal Online-style frame around character */}
+      <div className="relative mb-3 flex items-center justify-center">
+        <div className="absolute inset-0 pointer-events-none" style={{ border: `1px solid ${h.accent}33`, borderRadius: 6, boxShadow: `inset 0 0 20px ${h.glow}, 0 0 12px ${h.glow}` }} />
+        <div className="absolute -top-1.5 -left-1.5 h-3 w-3 rounded-sm" style={{ background: h.accent, opacity: 0.7 }} />
+        <div className="absolute -top-1.5 -right-1.5 h-3 w-3 rounded-sm" style={{ background: h.accent, opacity: 0.7 }} />
+        <div className="absolute -bottom-1.5 -left-1.5 h-3 w-3 rounded-sm" style={{ background: h.accent, opacity: 0.7 }} />
+        <div className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-sm" style={{ background: h.accent, opacity: 0.7 }} />
+        <CharacterCylinder3D
+          frames={allFrames}
+          angle={cardViewAngle}
+          onAngleChange={setCardViewAngle}
+          accentColor={h.accent}
+          glowColor={h.glow}
+          width={130}
+          height={162}
+        />
+      </div>
+      <p className="mb-3 text-[9px] font-bold uppercase tracking-widest" style={{ color: `${h.accent}88` }}>
+        ⟳ {ANGLE_LABELS[cardViewAngle]}
+      </p>
+
+      <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: `${h.accent}22`, boxShadow: `0 0 16px ${h.accent}22` }}>
+        <MaterialIcon name={h.icon} className="text-base" style={{ color: h.accent }} />
+      </div>
+      <p className="text-[10px] font-bold uppercase tracking-[0.25em]" style={{ color: h.accent }}>{h.title}</p>
+      <h3 className="mt-1 text-2xl font-black text-white">{h.name}</h3>
+      <p className="mt-2 text-[11px] leading-relaxed text-white/40">{h.desc}</p>
+
+      <div className="mt-5 w-full space-y-2.5">
+        {(Object.entries(h.stats) as [string, number][]).map(([k, v]) => (
+          <div key={k} className="flex items-center gap-3">
+            <span className="w-8 text-right text-[10px] font-black" style={{ color: STAT_COLORS[k] }}>{STAT_LABELS[k]}</span>
+            <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${v * 20}%` }}
+                transition={{ delay: 0.4 + idx * 0.1, duration: 0.6 }}
+                className="h-full rounded-full"
+                style={{ background: `linear-gradient(90deg, ${STAT_COLORS[k]}, ${STAT_COLORS[k]}88)`, boxShadow: `0 0 8px ${STAT_COLORS[k]}44` }}
+              />
+            </div>
+            <span className="w-4 text-[10px] font-bold text-white/30">{v}</span>
+          </div>
+        ))}
+      </div>
+
+      <motion.button
+        type="button"
+        whileTap={{ scale: 0.97 }}
+        onClick={onSelect}
+        className="mt-4 w-full rounded-xl border py-3 text-sm font-black transition-all"
+        style={{
+          borderColor: `${h.accent}33`,
+          background: `linear-gradient(135deg, ${h.accent}15, ${h.accent}08)`,
+          color: h.accent,
+        }}
+      >
+        Select Class
+      </motion.button>
+    </motion.div>
+  );
+}
+
 /* ═══════════════ entry ═══════════════ */
 
 export default function CreateCharacterPage() {
@@ -126,10 +226,6 @@ function Inner() {
   const [saving, setSaving] = useState(false);
   const [pop, setPop] = useState(false);
 
-  const svgRef = useRef<SVGSVGElement>(null);
-  const dragX = useRef<number | null>(null);
-  const dragAngle = useRef(0);
-
   useEffect(() => {
     if (participant?.avatar_config) router.replace("/");
     if (!participant && !isLoading) router.replace("/login");
@@ -152,7 +248,7 @@ function Inner() {
     triggerPop();
   };
 
-  const rotate = (d: number) => { setAngle(p => ((p + d) % 8 + 8) % 8); triggerPop(); };
+  const rotate = (d: number) => { setAngle((p: number) => ((p + d) % 8 + 8) % 8); triggerPop(); };
 
   const pick = (cat: Category, i: number) => {
     ({ hair: setHair, outfit: setOutfit, acc: setAcc, weapon: setWeapon }[cat])(i);
@@ -161,13 +257,10 @@ function Inner() {
 
   const sel = (cat: Category) => ({ hair, outfit, acc, weapon }[cat]);
 
-  const onPD = (e: React.PointerEvent<SVGSVGElement>) => { dragX.current = e.clientX; dragAngle.current = angle; svgRef.current?.setPointerCapture(e.pointerId); };
-  const onPM = (e: React.PointerEvent<SVGSVGElement>) => { if (dragX.current === null) return; setAngle(((dragAngle.current + Math.round((e.clientX - dragX.current) / 26)) % 8 + 8) % 8); };
-  const onPU = () => { dragX.current = null; };
-
   const hero = HEROES.find(h => h.id === heroId) ?? HEROES[1];
-  const charSVG = buildCharacterSVG(gender, hair, outfit, acc, weapon, angle, DATA);
   const charName = CHAR_NAMES[gender][outfit] ?? CHAR_NAMES[gender][0];
+  // All 8 frames for the cylinder viewer in stage 2
+  const allCharFrames = buildAllFrames(gender, hair, outfit, acc, weapon);
 
   const handleSave = async () => {
     if (!participant || !heroId) return;
@@ -259,77 +352,9 @@ function Inner() {
 
               {/* hero cards */}
               <div className="mx-auto grid w-full max-w-5xl flex-1 gap-5 px-4 pb-10 md:grid-cols-3 md:px-8">
-                {HEROES.map((h, idx) => {
-                  const pr = PRESETS[h.id][gender];
-                  const svg = buildCharacterSVG(gender, pr.hair, pr.outfit, pr.acc, pr.weapon, 1, DATA);
-
-                  return (
-                    <motion.button
-                      key={h.id}
-                      type="button"
-                      initial={{ opacity: 0, y: 30 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2 + idx * 0.1 }}
-                      whileHover={{ y: -8, scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => selectHero(h.id)}
-                      className="group relative flex flex-col items-center rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 pt-6 text-center backdrop-blur-sm transition-all hover:border-white/[0.15] hover:shadow-[0_20px_60px_rgba(0,0,0,0.3)]"
-                    >
-                      {/* glow on hover */}
-                      <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity group-hover:opacity-100" style={{ boxShadow: `inset 0 1px 0 ${h.accent}44, 0 0 60px ${h.glow}` }} />
-
-                      {h.badge && (
-                        <span className="absolute -top-2.5 right-4 z-20 rounded-full border border-amber-400/30 bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-[0_4px_12px_rgba(251,191,36,0.3)]">
-                          {h.badge}
-                        </span>
-                      )}
-
-                      {/* character platform */}
-                      <div className="relative mb-5 flex h-44 w-44 items-end justify-center">
-                        <div className="absolute bottom-0 left-1/2 h-4 w-32 -translate-x-1/2 rounded-full blur-xl" style={{ backgroundColor: h.glow }} />
-                        <div className="absolute bottom-0 left-1/2 h-3 w-28 -translate-x-1/2 rounded-full border border-white/10" style={{ background: `radial-gradient(ellipse, ${h.accent}33, transparent 70%)` }} />
-                        <svg viewBox="0 0 200 245" width={130} height={162} className="relative z-10 animate-hero-float drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]" dangerouslySetInnerHTML={{ __html: `<g>${svg}</g>` }} />
-                      </div>
-
-                      {/* class icon */}
-                      <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: `${h.accent}22`, boxShadow: `0 0 16px ${h.accent}22` }}>
-                        <MaterialIcon name={h.icon} className="text-base" style={{ color: h.accent }} />
-                      </div>
-
-                      <p className="text-[10px] font-bold uppercase tracking-[0.25em]" style={{ color: h.accent }}>{h.title}</p>
-                      <h3 className="mt-1 text-2xl font-black text-white">{h.name}</h3>
-                      <p className="mt-2 text-[11px] leading-relaxed text-white/40">{h.desc}</p>
-
-                      {/* stats */}
-                      <div className="mt-5 w-full space-y-2.5">
-                        {(Object.entries(h.stats) as [string, number][]).map(([k, v]) => (
-                          <div key={k} className="flex items-center gap-3">
-                            <span className="w-8 text-right text-[10px] font-black" style={{ color: STAT_COLORS[k] }}>{STAT_LABELS[k]}</span>
-                            <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${v * 20}%` }}
-                                transition={{ delay: 0.4 + idx * 0.1, duration: 0.6 }}
-                                className="h-full rounded-full"
-                                style={{ background: `linear-gradient(90deg, ${STAT_COLORS[k]}, ${STAT_COLORS[k]}88)`, boxShadow: `0 0 8px ${STAT_COLORS[k]}44` }}
-                              />
-                            </div>
-                            <span className="w-4 text-[10px] font-bold text-white/30">{v}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* select button */}
-                      <div className="mt-6 w-full rounded-xl border py-3 text-sm font-black transition-all" style={{
-                        borderColor: `${h.accent}33`,
-                        background: `linear-gradient(135deg, ${h.accent}15, ${h.accent}08)`,
-                        color: h.accent,
-                      }}>
-                        Select Class
-                      </div>
-                    </motion.button>
-                  );
-                })}
+                {HEROES.map((h, idx) => (
+                  <HeroCard key={h.id} h={h} idx={idx} gender={gender} onSelect={() => selectHero(h.id)} />
+                ))}
               </div>
 
               {/* footer info */}
@@ -370,29 +395,58 @@ function Inner() {
                   <span className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: hero.accent }}>{hero.title}</span>
                 </div>
 
-                {/* character preview */}
-                <div className="relative">
-                  <div className="absolute inset-0 -m-6 rounded-full blur-2xl" style={{ background: `radial-gradient(circle, ${hero.glow}, transparent 70%)` }} />
-                  <div className="absolute -bottom-4 left-1/2 h-6 w-40 -translate-x-1/2 rounded-full blur-lg" style={{ backgroundColor: hero.glow }} />
-                  <div className="absolute -bottom-2 left-1/2 h-3 w-32 -translate-x-1/2 rounded-full border border-white/10" style={{ background: `radial-gradient(ellipse, ${hero.accent}44, transparent 70%)` }} />
+                {/* character preview — Seal Online style frame + 3D cylinder */}
+                <div className="relative flex flex-col items-center">
+                  {/* ambient glow behind */}
+                  <div className="absolute inset-0 -m-8 rounded-full blur-3xl pointer-events-none" style={{ background: `radial-gradient(circle, ${hero.glow}, transparent 70%)` }} />
 
-                  <svg
-                    ref={svgRef}
-                    viewBox="0 0 200 245"
-                    width={220}
-                    height={270}
-                    className={`relative z-10 mx-auto block cursor-grab select-none drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] active:cursor-grabbing ${pop ? "animate-maple-pop" : ""}`}
-                    onPointerDown={onPD} onPointerMove={onPM} onPointerUp={onPU}
-                    dangerouslySetInnerHTML={{ __html: `<g>${charSVG}</g>` }}
-                  />
+                  {/* Seal Online ornate frame */}
+                  <div
+                    className="relative z-10 p-2"
+                    style={{
+                      background: `linear-gradient(160deg, rgba(10,8,28,0.95) 0%, rgba(18,12,40,0.98) 100%)`,
+                      border: `2px solid ${hero.accent}55`,
+                      borderRadius: 4,
+                      boxShadow: `0 0 0 1px rgba(255,255,255,0.05), 0 0 32px ${hero.glow}, inset 0 0 24px rgba(0,0,0,0.5)`,
+                    }}
+                  >
+                    {/* corner ornaments */}
+                    {["-top-2 -left-2","-top-2 -right-2","-bottom-2 -left-2","-bottom-2 -right-2"].map((pos, i) => (
+                      <div key={i} className={`absolute ${pos} h-4 w-4`} style={{ background: hero.accent, clipPath: "polygon(0 0,100% 0,100% 30%,30% 30%,30% 100%,0 100%)", opacity: 0.85, transform: i >= 2 ? "scaleY(-1)" : undefined, ...(i === 1 || i === 3 ? { transform: `scaleX(-1)${i === 3 ? " scaleY(-1)" : ""}` } : {}) }} />
+                    ))}
+                    {/* top bar */}
+                    <div className="mb-1.5 flex items-center justify-between px-1">
+                      <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, transparent, ${hero.accent}88, transparent)` }} />
+                      <span className="mx-2 text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: hero.accent }}>Character View</span>
+                      <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, transparent, ${hero.accent}88, transparent)` }} />
+                    </div>
+
+                    <CharacterCylinder3D
+                      frames={allCharFrames}
+                      angle={angle}
+                      onAngleChange={(a) => { setAngle(a); triggerPop(); }}
+                      accentColor={hero.accent}
+                      glowColor={hero.glow}
+                      width={220}
+                      height={270}
+                      pop={pop}
+                    />
+
+                    {/* bottom bar */}
+                    <div className="mt-1.5 flex items-center justify-between px-1">
+                      <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, transparent, ${hero.accent}44, transparent)` }} />
+                      <span className="mx-2 text-[9px] font-bold" style={{ color: `${hero.accent}77` }}>Drag to rotate · Swipe left/right</span>
+                      <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, transparent, ${hero.accent}44, transparent)` }} />
+                    </div>
+                  </div>
                 </div>
 
-                {/* name & rotation */}
-                <p className="mt-6 text-2xl font-black text-white">{charName}</p>
+                {/* name & rotation indicator */}
+                <p className="mt-5 text-2xl font-black text-white">{charName}</p>
                 <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.3em] text-white/30">{ANGLE_LABELS[angle]} View</p>
 
-                {/* rotation controls */}
-                <div className="mt-4 flex items-center gap-3">
+                {/* rotation dot indicators + arrow buttons */}
+                <div className="mt-3 flex items-center gap-3">
                   <button type="button" onClick={() => rotate(-1)} className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white/50 transition-colors hover:border-white/[0.15] hover:text-white/70">
                     <MaterialIcon name="chevron_left" className="text-lg" />
                   </button>
