@@ -58,6 +58,7 @@ export type Database = {
           description: string | null;
           time_limit_seconds: number;
           is_active: boolean;
+          randomize_questions: boolean;
           start_time: string | null;
           end_time: string | null;
           created_by: string | null;
@@ -70,6 +71,7 @@ export type Database = {
           description?: string | null;
           time_limit_seconds?: number;
           is_active?: boolean;
+          randomize_questions?: boolean;
           start_time?: string | null;
           end_time?: string | null;
           created_by?: string | null;
@@ -82,6 +84,7 @@ export type Database = {
           description?: string | null;
           time_limit_seconds?: number;
           is_active?: boolean;
+          randomize_questions?: boolean;
           start_time?: string | null;
           end_time?: string | null;
           created_by?: string | null;
@@ -94,27 +97,33 @@ export type Database = {
           id: string;
           batch_id: string;
           question_text: string;
-          question_type: "multiple_choice";
+          question_type: "multiple_choice" | "true_false";
           points: number;
           order_index: number;
+          category: string | null;
+          difficulty: "easy" | "medium" | "hard";
           created_at: string;
         };
         Insert: {
           id?: string;
           batch_id: string;
           question_text: string;
-          question_type?: "multiple_choice";
+          question_type?: "multiple_choice" | "true_false";
           points?: number;
           order_index?: number;
+          category?: string | null;
+          difficulty?: "easy" | "medium" | "hard";
           created_at?: string;
         };
         Update: {
           id?: string;
           batch_id?: string;
           question_text?: string;
-          question_type?: "multiple_choice";
+          question_type?: "multiple_choice" | "true_false";
           points?: number;
           order_index?: number;
+          category?: string | null;
+          difficulty?: "easy" | "medium" | "hard";
         };
         Relationships: [
           {
@@ -171,6 +180,7 @@ export type Database = {
           points_earned: number;
           xp_earned: number;
           streak_count: number;
+          time_taken_seconds: number;
           answered_at: string;
         };
         Insert: {
@@ -183,6 +193,7 @@ export type Database = {
           points_earned?: number;
           xp_earned?: number;
           streak_count?: number;
+          time_taken_seconds?: number;
           answered_at?: string;
         };
         Update: {
@@ -195,6 +206,7 @@ export type Database = {
           points_earned?: number;
           xp_earned?: number;
           streak_count?: number;
+          time_taken_seconds?: number;
         };
         Relationships: [
           {
@@ -236,6 +248,7 @@ export type Database = {
           score: number;
           total_xp: number;
           max_streak: number;
+          question_order: string[] | null;
           started_at: string;
           finished_at: string | null;
         };
@@ -247,6 +260,7 @@ export type Database = {
           score?: number;
           total_xp?: number;
           max_streak?: number;
+          question_order?: string[] | null;
           started_at?: string;
           finished_at?: string | null;
         };
@@ -258,6 +272,7 @@ export type Database = {
           score?: number;
           total_xp?: number;
           max_streak?: number;
+          question_order?: string[] | null;
           finished_at?: string | null;
         };
         Relationships: [

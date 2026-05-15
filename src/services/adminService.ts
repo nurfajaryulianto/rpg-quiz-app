@@ -32,6 +32,9 @@ export async function createBatch(batch: {
   description?: string;
   time_limit_seconds: number;
   is_active?: boolean;
+  randomize_questions?: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
   created_by?: string;
 }) {
   const { data, error } = await supabase
@@ -49,6 +52,9 @@ export async function updateBatch(id: string, updates: {
   description?: string;
   time_limit_seconds?: number;
   is_active?: boolean;
+  randomize_questions?: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
 }) {
   const { data, error } = await supabase
     .from("batches")
@@ -87,6 +93,9 @@ export async function getQuestionsByBatch(batchId: string) {
 
 export async function createQuestion(batchId: string, question: {
   question_text: string;
+  question_type?: "multiple_choice" | "true_false";
+  category?: string | null;
+  difficulty?: "easy" | "medium" | "hard";
   points: number;
   order_index: number;
   options: { option_text: string; option_label: "A" | "B" | "C" | "D"; is_correct: boolean }[];
@@ -96,6 +105,9 @@ export async function createQuestion(batchId: string, question: {
     .insert({
       batch_id: batchId,
       question_text: question.question_text,
+      question_type: question.question_type ?? "multiple_choice",
+      category: question.category ?? null,
+      difficulty: question.difficulty ?? "medium",
       points: question.points,
       order_index: question.order_index,
     })
@@ -119,16 +131,23 @@ export async function createQuestion(batchId: string, question: {
 
 export async function updateQuestion(questionId: string, updates: {
   question_text?: string;
+  question_type?: "multiple_choice" | "true_false";
+  category?: string | null;
+  difficulty?: "easy" | "medium" | "hard";
   points?: number;
   options?: { id?: string; option_text: string; option_label: "A" | "B" | "C" | "D"; is_correct: boolean }[];
 }) {
-  if (updates.question_text !== undefined || updates.points !== undefined) {
+  const fieldUpdates: Record<string, unknown> = {};
+  if (updates.question_text !== undefined) fieldUpdates.question_text = updates.question_text;
+  if (updates.question_type !== undefined) fieldUpdates.question_type = updates.question_type;
+  if (updates.category !== undefined) fieldUpdates.category = updates.category;
+  if (updates.difficulty !== undefined) fieldUpdates.difficulty = updates.difficulty;
+  if (updates.points !== undefined) fieldUpdates.points = updates.points;
+
+  if (Object.keys(fieldUpdates).length > 0) {
     const { error } = await supabase
       .from("questions")
-      .update({
-        ...(updates.question_text !== undefined && { question_text: updates.question_text }),
-        ...(updates.points !== undefined && { points: updates.points }),
-      })
+      .update(fieldUpdates)
       .eq("id", questionId);
 
     if (error) throw error;
@@ -164,11 +183,16 @@ export async function uploadQuestions(batchId: string, questions: ParsedQuestion
 
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
+    const isTrueFalse = q.question_type === "true_false";
+
     const { data: questionData, error: qError } = await supabase
       .from("questions")
       .insert({
         batch_id: batchId,
         question_text: q.question_text,
+        question_type: q.question_type ?? "multiple_choice",
+        category: q.category ?? null,
+        difficulty: q.difficulty ?? "medium",
         points: q.points,
         order_index: i,
       })
@@ -177,17 +201,19 @@ export async function uploadQuestions(batchId: string, questions: ParsedQuestion
 
     if (qError) throw qError;
 
-    const options = [
-      { question_id: questionData.id, option_text: q.option_a, option_label: "A" as const, is_correct: q.correct_answer === "A" },
-      { question_id: questionData.id, option_text: q.option_b, option_label: "B" as const, is_correct: q.correct_answer === "B" },
-      { question_id: questionData.id, option_text: q.option_c, option_label: "C" as const, is_correct: q.correct_answer === "C" },
-      { question_id: questionData.id, option_text: q.option_d, option_label: "D" as const, is_correct: q.correct_answer === "D" },
-    ];
+    const options = isTrueFalse
+      ? [
+          { question_id: questionData.id, option_text: "Benar", option_label: "A" as const, is_correct: q.correct_answer === "A" },
+          { question_id: questionData.id, option_text: "Salah", option_label: "B" as const, is_correct: q.correct_answer === "B" },
+        ]
+      : [
+          { question_id: questionData.id, option_text: q.option_a, option_label: "A" as const, is_correct: q.correct_answer === "A" },
+          { question_id: questionData.id, option_text: q.option_b, option_label: "B" as const, is_correct: q.correct_answer === "B" },
+          { question_id: questionData.id, option_text: q.option_c, option_label: "C" as const, is_correct: q.correct_answer === "C" },
+          { question_id: questionData.id, option_text: q.option_d, option_label: "D" as const, is_correct: q.correct_answer === "D" },
+        ];
 
-    const { error: oError } = await supabase
-      .from("options")
-      .insert(options);
-
+    const { error: oError } = await supabase.from("options").insert(options);
     if (oError) throw oError;
 
     results.push(questionData);
@@ -447,3 +473,368 @@ export async function getAssignedBatchIds(participantId: string): Promise<string
   if (error) throw error;
   return (data ?? []).map((bp: { batch_id: string }) => bp.batch_id);
 }
+
+// ============================================
+// BATCH DUPLICATION
+// ============================================
+
+export async function duplicateBatch(batchId: string, createdBy?: string): Promise<Batch> {
+  // Fetch original batch and its questions+options
+  const [batchRes, questionsRes] = await Promise.all([
+    supabase.from("batches").select("*").eq("id", batchId).single(),
+    supabase.from("questions").select("*, options(*)").eq("batch_id", batchId).order("order_index", { ascending: true }),
+  ]);
+
+  if (batchRes.error) throw batchRes.error;
+  const original = batchRes.data as Batch;
+
+  // Create new batch (inactive by default)
+  const { data: newBatch, error: bError } = await supabase
+    .from("batches")
+    .insert({
+      name: `${original.name} (Copy)`,
+      description: original.description,
+      time_limit_seconds: original.time_limit_seconds,
+      randomize_questions: original.randomize_questions,
+      is_active: false,
+      created_by: createdBy ?? original.created_by,
+    })
+    .select()
+    .single();
+
+  if (bError) throw bError;
+
+  // Copy all questions and options
+  const originalQuestions = (questionsRes.data ?? []) as QuestionWithOptions[];
+  for (const q of originalQuestions) {
+    const { data: newQ, error: qError } = await supabase
+      .from("questions")
+      .insert({
+        batch_id: newBatch.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        category: q.category,
+        difficulty: q.difficulty,
+        points: q.points,
+        order_index: q.order_index,
+      })
+      .select()
+      .single();
+
+    if (qError) throw qError;
+
+    if (q.options && q.options.length > 0) {
+      const { error: oError } = await supabase.from("options").insert(
+        q.options.map((opt) => ({
+          question_id: newQ.id,
+          option_text: opt.option_text,
+          option_label: opt.option_label,
+          is_correct: opt.is_correct,
+        }))
+      );
+      if (oError) throw oError;
+    }
+  }
+
+  return newBatch as Batch;
+}
+
+// ============================================
+// ANALYTICS
+// ============================================
+
+export interface QuestionAnalytics {
+  questionId: string;
+  questionText: string;
+  category: string | null;
+  difficulty: string;
+  totalAttempts: number;
+  correctAttempts: number;
+  accuracyRate: number;
+  avgTimeTakenSeconds: number;
+  points: number;
+}
+
+export interface CategoryAnalytics {
+  category: string;
+  totalQuestions: number;
+  totalAttempts: number;
+  correctAttempts: number;
+  accuracyRate: number;
+  avgTimeTakenSeconds: number;
+}
+
+export interface BatchAnalytics {
+  batchId: string;
+  totalParticipants: number;
+  completedCount: number;
+  inProgressCount: number;
+  timedOutCount: number;
+  avgScore: number;
+  avgAccuracy: number;
+  topScore: number;
+  lowestScore: number;
+  questionAnalytics: QuestionAnalytics[];
+  categoryAnalytics: CategoryAnalytics[];
+  difficultyBreakdown: { difficulty: string; count: number; accuracyRate: number }[];
+}
+
+export async function getBatchAnalytics(batchId: string): Promise<BatchAnalytics> {
+  const [sessionsRes, questionsRes, answersRes] = await Promise.all([
+    supabase.from("exam_sessions").select("*").eq("batch_id", batchId),
+    supabase.from("questions").select("*, options(*)").eq("batch_id", batchId).order("order_index", { ascending: true }),
+    supabase
+      .from("answers")
+      .select("question_id, is_correct, time_taken_seconds")
+      .eq("batch_id", batchId),
+  ]);
+
+  if (sessionsRes.error) throw sessionsRes.error;
+  if (questionsRes.error) throw questionsRes.error;
+  if (answersRes.error) throw answersRes.error;
+
+  const sessions = (sessionsRes.data ?? []) as ExamSession[];
+  const questions = (questionsRes.data ?? []) as QuestionWithOptions[];
+  const answers = (answersRes.data ?? []) as {
+    question_id: string;
+    is_correct: boolean;
+    time_taken_seconds: number;
+  }[];
+
+  // Build a map: questionId -> { correct, total, totalTime }
+  const qMap = new Map<string, { correct: number; total: number; totalTime: number }>();
+  for (const a of answers) {
+    const entry = qMap.get(a.question_id) ?? { correct: 0, total: 0, totalTime: 0 };
+    entry.total += 1;
+    if (a.is_correct) entry.correct += 1;
+    entry.totalTime += a.time_taken_seconds;
+    qMap.set(a.question_id, entry);
+  }
+
+  const questionAnalytics: QuestionAnalytics[] = questions.map((q) => {
+    const stats = qMap.get(q.id) ?? { correct: 0, total: 0, totalTime: 0 };
+    return {
+      questionId: q.id,
+      questionText: q.question_text,
+      category: q.category,
+      difficulty: q.difficulty,
+      totalAttempts: stats.total,
+      correctAttempts: stats.correct,
+      accuracyRate: stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0,
+      avgTimeTakenSeconds: stats.total > 0 ? Math.round(stats.totalTime / stats.total) : 0,
+      points: q.points,
+    };
+  });
+
+  // Per-category analytics
+  const catMap = new Map<string, { total: number; correct: number; totalTime: number; attempts: number }>();
+  for (const qa of questionAnalytics) {
+    const cat = qa.category ?? "Uncategorized";
+    const entry = catMap.get(cat) ?? { total: 0, correct: 0, totalTime: 0, attempts: 0 };
+    entry.total += 1;
+    entry.correct += qa.correctAttempts;
+    entry.totalTime += qa.avgTimeTakenSeconds * qa.totalAttempts;
+    entry.attempts += qa.totalAttempts;
+    catMap.set(cat, entry);
+  }
+
+  const categoryAnalytics: CategoryAnalytics[] = Array.from(catMap.entries()).map(([cat, stats]) => ({
+    category: cat,
+    totalQuestions: stats.total,
+    totalAttempts: stats.attempts,
+    correctAttempts: stats.correct,
+    accuracyRate: stats.attempts > 0 ? Math.round((stats.correct / stats.attempts) * 100) : 0,
+    avgTimeTakenSeconds: stats.attempts > 0 ? Math.round(stats.totalTime / stats.attempts) : 0,
+  }));
+
+  // Per-difficulty breakdown
+  const diffMap = new Map<string, { count: number; correct: number; total: number }>();
+  for (const qa of questionAnalytics) {
+    const diff = qa.difficulty;
+    const entry = diffMap.get(diff) ?? { count: 0, correct: 0, total: 0 };
+    entry.count += 1;
+    entry.correct += qa.correctAttempts;
+    entry.total += qa.totalAttempts;
+    diffMap.set(diff, entry);
+  }
+
+  const difficultyBreakdown = Array.from(diffMap.entries()).map(([diff, stats]) => ({
+    difficulty: diff,
+    count: stats.count,
+    accuracyRate: stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0,
+  }));
+
+  const completed = sessions.filter((s) => s.status === "completed");
+  const scores = completed.map((s) => s.score);
+  const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+  const topScore = scores.length > 0 ? Math.max(...scores) : 0;
+  const lowestScore = scores.length > 0 ? Math.min(...scores) : 0;
+
+  const totalAnswers = answers.length;
+  const totalCorrect = answers.filter((a) => a.is_correct).length;
+  const avgAccuracy = totalAnswers > 0 ? Math.round((totalCorrect / totalAnswers) * 100) : 0;
+
+  return {
+    batchId,
+    totalParticipants: sessions.length,
+    completedCount: completed.length,
+    inProgressCount: sessions.filter((s) => s.status === "in_progress").length,
+    timedOutCount: sessions.filter((s) => s.status === "timed_out").length,
+    avgScore,
+    avgAccuracy,
+    topScore,
+    lowestScore,
+    questionAnalytics,
+    categoryAnalytics,
+    difficultyBreakdown,
+  };
+}
+
+// ============================================
+// PARTICIPANT DRILL-DOWN ANSWERS
+// ============================================
+
+export interface ParticipantAnswerDetail {
+  questionId: string;
+  questionText: string;
+  category: string | null;
+  difficulty: string;
+  points: number;
+  selectedOptionId: string | null;
+  selectedOptionText: string | null;
+  correctOptionText: string | null;
+  isCorrect: boolean;
+  pointsEarned: number;
+  timeTakenSeconds: number;
+  streakCount: number;
+}
+
+export async function getParticipantAnswers(
+  participantId: string,
+  batchId: string
+): Promise<ParticipantAnswerDetail[]> {
+  const { data, error } = await supabase
+    .from("answers")
+    .select(`
+      question_id,
+      selected_option_id,
+      is_correct,
+      points_earned,
+      time_taken_seconds,
+      streak_count,
+      questions (
+        question_text,
+        category,
+        difficulty,
+        points,
+        options ( id, option_text, is_correct )
+      )
+    `)
+    .eq("participant_id", participantId)
+    .eq("batch_id", batchId);
+
+  if (error) throw error;
+
+  return (data ?? []).map((row: Record<string, unknown>) => {
+    const q = row.questions as {
+      question_text: string;
+      category: string | null;
+      difficulty: string;
+      points: number;
+      options: { id: string; option_text: string; is_correct: boolean }[];
+    } | null;
+
+    const selectedOpt = q?.options?.find((o) => o.id === row.selected_option_id) ?? null;
+    const correctOpt = q?.options?.find((o) => o.is_correct) ?? null;
+
+    return {
+      questionId: row.question_id as string,
+      questionText: q?.question_text ?? "",
+      category: q?.category ?? null,
+      difficulty: q?.difficulty ?? "medium",
+      points: q?.points ?? 0,
+      selectedOptionId: (row.selected_option_id as string | null),
+      selectedOptionText: selectedOpt?.option_text ?? null,
+      correctOptionText: correctOpt?.option_text ?? null,
+      isCorrect: row.is_correct as boolean,
+      pointsEarned: row.points_earned as number,
+      timeTakenSeconds: row.time_taken_seconds as number,
+      streakCount: row.streak_count as number,
+    };
+  });
+}
+
+// ============================================
+// EXCEL EXPORT DATA
+// ============================================
+
+export interface ExportRow {
+  no: number;
+  participant: string;
+  batch: string;
+  score: number;
+  xp: number;
+  maxStreak: number;
+  status: string;
+  startedAt: string;
+  finishedAt: string;
+  durationMinutes: number;
+  correctAnswers: number;
+  totalQuestions: number;
+  accuracyPercent: number;
+}
+
+export async function getBatchExportData(batchId: string): Promise<ExportRow[]> {
+  const [sessionsRes, answersRes, questionsRes] = await Promise.all([
+    supabase
+      .from("exam_sessions")
+      .select("*, participants(name), batches(name)")
+      .eq("batch_id", batchId)
+      .order("score", { ascending: false }),
+    supabase
+      .from("answers")
+      .select("participant_id, is_correct")
+      .eq("batch_id", batchId),
+    supabase.from("questions").select("id", { count: "exact" }).eq("batch_id", batchId),
+  ]);
+
+  if (sessionsRes.error) throw sessionsRes.error;
+
+  const sessions = sessionsRes.data ?? [];
+  const answers = (answersRes.data ?? []) as { participant_id: string; is_correct: boolean }[];
+  const totalQ = questionsRes.count ?? 0;
+
+  // Build per-participant correct count
+  const correctMap = new Map<string, number>();
+  for (const a of answers) {
+    correctMap.set(a.participant_id, (correctMap.get(a.participant_id) ?? 0) + (a.is_correct ? 1 : 0));
+  }
+
+  return sessions.map((s: Record<string, unknown>, idx: number) => {
+    const batchName = (s.batches as { name: string } | null)?.name ?? "Unknown";
+    const participantName = (s.participants as { name: string } | null)?.name ?? "Unknown";
+    const startedAt = s.started_at as string;
+    const finishedAt = s.finished_at as string | null;
+    const durationMs = finishedAt
+      ? new Date(finishedAt).getTime() - new Date(startedAt).getTime()
+      : 0;
+    const correct = correctMap.get(s.participant_id as string) ?? 0;
+
+    return {
+      no: idx + 1,
+      participant: participantName,
+      batch: batchName,
+      score: s.score as number,
+      xp: s.total_xp as number,
+      maxStreak: s.max_streak as number,
+      status: s.status as string,
+      startedAt: startedAt ? new Date(startedAt).toLocaleString("id-ID") : "-",
+      finishedAt: finishedAt ? new Date(finishedAt).toLocaleString("id-ID") : "-",
+      durationMinutes: Math.round(durationMs / 60000),
+      correctAnswers: correct,
+      totalQuestions: totalQ,
+      accuracyPercent: totalQ > 0 ? Math.round((correct / totalQ) * 100) : 0,
+    };
+  });
+}
+

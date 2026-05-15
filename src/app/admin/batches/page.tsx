@@ -18,6 +18,7 @@ import {
   getBatchParticipants,
   addParticipantsToBatch,
   removeParticipantFromBatch,
+  duplicateBatch,
 } from "@/services/adminService";
 import type { Batch, ExamSession, Participant } from "@/lib/database.types";
 
@@ -25,6 +26,9 @@ interface BatchForm {
   name: string;
   description: string;
   time_limit_seconds: number;
+  randomize_questions: boolean;
+  start_time: string;
+  end_time: string;
 }
 
 interface BatchStats {
@@ -88,13 +92,18 @@ export default function BatchesPage() {
   const onSubmit = async (data: BatchForm) => {
     setSaving(true);
     try {
+      const payload = {
+        name: data.name,
+        description: data.description,
+        time_limit_seconds: data.time_limit_seconds,
+        randomize_questions: data.randomize_questions,
+        start_time: data.start_time ? new Date(data.start_time).toISOString() : null,
+        end_time: data.end_time ? new Date(data.end_time).toISOString() : null,
+      };
       if (editingId) {
-        await updateBatch(editingId, data);
+        await updateBatch(editingId, payload);
       } else {
-        await createBatch({
-          ...data,
-          created_by: participant?.id,
-        });
+        await createBatch({ ...payload, created_by: participant?.id });
       }
       reset();
       setEditingId(null);
@@ -112,7 +121,19 @@ export default function BatchesPage() {
     setValue("name", batch.name);
     setValue("description", batch.description ?? "");
     setValue("time_limit_seconds", batch.time_limit_seconds);
+    setValue("randomize_questions", batch.randomize_questions ?? false);
+    setValue("start_time", batch.start_time ? batch.start_time.slice(0, 16) : "");
+    setValue("end_time", batch.end_time ? batch.end_time.slice(0, 16) : "");
     setShowForm(true);
+  };
+
+  const handleDuplicate = async (batchId: string) => {
+    try {
+      await duplicateBatch(batchId, participant?.id);
+      await loadBatches();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to duplicate batch");
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -285,6 +306,44 @@ export default function BatchesPage() {
                 )}
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-on-surface-variant text-sm font-medium mb-1 flex items-center gap-1">
+                    <MaterialIcon name="event" className="text-sm" /> Exam Start Time (optional)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    {...register("start_time")}
+                    className="w-full bg-surface-container-lowest border-2 border-outline-variant/30 rounded-lg p-3 text-on-surface focus:border-primary focus:outline-none transition-colors"
+                  />
+                  <p className="text-on-surface-variant text-xs mt-1">Leave blank to allow access any time</p>
+                </div>
+                <div>
+                  <label className="block text-on-surface-variant text-sm font-medium mb-1 flex items-center gap-1">
+                    <MaterialIcon name="event_busy" className="text-sm" /> Exam End Time (optional)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    {...register("end_time")}
+                    className="w-full bg-surface-container-lowest border-2 border-outline-variant/30 rounded-lg p-3 text-on-surface focus:border-primary focus:outline-none transition-colors"
+                  />
+                  <p className="text-on-surface-variant text-xs mt-1">Leave blank for no deadline</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-surface-container-low rounded-lg border border-outline-variant/20">
+                <input
+                  type="checkbox"
+                  id="randomize_questions"
+                  {...register("randomize_questions")}
+                  className="w-4 h-4 accent-primary"
+                />
+                <label htmlFor="randomize_questions" className="text-on-surface text-sm font-medium cursor-pointer flex-1">
+                  Randomize question order per participant
+                  <span className="block text-on-surface-variant text-xs font-normal">Each participant gets questions in a different order</span>
+                </label>
+              </div>
+
               <button
                 type="submit"
                 disabled={saving}
@@ -351,7 +410,22 @@ export default function BatchesPage() {
                         <p className="text-on-surface-variant text-xs mt-1 flex items-center gap-1">
                           <MaterialIcon name="timer" className="text-sm" />
                           {batch.time_limit_seconds}s per question
+                          {batch.randomize_questions && (
+                            <span className="ml-1 px-1.5 py-0.5 bg-primary-container text-on-primary-container text-[10px] font-bold rounded-full">RANDOM</span>
+                          )}
                         </p>
+                        {(batch.start_time || batch.end_time) && (
+                          <p className="text-on-surface-variant text-xs mt-0.5 flex items-center gap-1">
+                            <MaterialIcon name="schedule" className="text-sm" />
+                            {batch.start_time
+                              ? new Date(batch.start_time).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })
+                              : "Open"}{" "}
+                            →{" "}
+                            {batch.end_time
+                              ? new Date(batch.end_time).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })
+                              : "No deadline"}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -380,6 +454,13 @@ export default function BatchesPage() {
                     >
                       <MaterialIcon name="edit" className="text-sm" />
                       Edit
+                    </button>
+                    <button
+                      onClick={() => handleDuplicate(batch.id)}
+                      className="px-3 py-1.5 bg-surface-container-high text-on-surface text-xs font-bold rounded-lg hover:bg-surface-container transition-colors flex items-center gap-1"
+                    >
+                      <MaterialIcon name="content_copy" className="text-sm" />
+                      Duplicate
                     </button>
                     <button
                       onClick={() => router.push(`/admin/questions`)}

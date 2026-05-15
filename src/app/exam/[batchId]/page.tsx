@@ -15,6 +15,7 @@ import {
   submitAnswer,
   finishExam,
   getExamSession,
+  assertBatchAccessible,
 } from "@/services/examService";
 import { getXPProgress, getLevelTitle } from "@/utils/gamification";
 import { supabase } from "@/lib/supabase";
@@ -55,6 +56,7 @@ function ExamPage() {
 
     async function load() {
       try {
+        // Check for a completed/timed-out session before fetching batch
         const existingSession = await getExamSession(participant!.id, batchId);
         if (existingSession && existingSession.status !== "in_progress") {
           if (!cancelled) setError("You have already completed this quest!");
@@ -75,16 +77,22 @@ function ExamPage() {
           if (!cancelled) setError("Quest not found");
           return;
         }
-        if (!batchData.is_active) {
-          if (!cancelled) setError("This quest is not currently active");
-          return;
-        }
 
-        await startExamSession(participant!.id, batchId);
-        const q = await fetchExamQuestions(batchId);
+        // Enforce timing window (throws with user-friendly message)
+        assertBatchAccessible(batchData);
+
+        // Start or resume session — passes batch for randomisation logic
+        const session = await startExamSession(participant!.id, batchId, batchData);
+
+        // Fetch questions respecting per-participant question order
+        const q = await fetchExamQuestions(batchId, session.question_order ?? null);
 
         if (!cancelled) {
           useExamStore.getState().setQuestions(q, batchData.time_limit_seconds);
+          // Mark the first question's start time
+          if (q.length > 0) {
+            useExamStore.getState().markQuestionStart(q[0].id);
+          }
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load quest");
@@ -103,6 +111,12 @@ function ExamPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [participant?.id, batchId]);
+
+  // Mark question start time whenever the current question changes
+  useEffect(() => {
+    const q = useExamStore.getState().questions[currentIndex];
+    if (q) useExamStore.getState().markQuestionStart(q.id);
+  }, [currentIndex]);
 
   // Finish exam
   const doFinish = useCallback(
@@ -149,6 +163,7 @@ function ExamPage() {
       const isCorrect = selectedOption?.is_correct ?? false;
 
       try {
+        const timeTaken = useExamStore.getState().getTimeTaken(question.id);
         const result = await submitAnswer({
           participantId: participant.id,
           questionId: question.id,
@@ -158,6 +173,7 @@ function ExamPage() {
           points: question.points,
           streakCount: isCorrect ? s.streak : 0,
           timeRemainingRatio: s.totalTime > 0 ? s.timeRemaining / s.totalTime : 0,
+          timeTakenSeconds: timeTaken,
         });
 
         s.addScore(result.pointsEarned);

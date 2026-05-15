@@ -13,6 +13,8 @@ interface ExamState {
   totalTime: number;
   isFinished: boolean;
   isSubmitting: boolean;
+  /** epoch ms when each question was first displayed */
+  questionStartTimes: Map<string, number>;
 
   // Actions
   setQuestions: (questions: QuestionWithOptions[], timePerQuestion: number) => void;
@@ -27,11 +29,15 @@ interface ExamState {
   setTimeRemaining: (time: number) => void;
   setFinished: (finished: boolean) => void;
   setSubmitting: (submitting: boolean) => void;
+  /** Record the start time for a question (call when question first renders). */
+  markQuestionStart: (questionId: string) => void;
+  /** Returns seconds elapsed since the question was started (capped at totalTime). */
+  getTimeTaken: (questionId: string) => number;
   reset: () => void;
 }
 
 const initialState = {
-  questions: [],
+  questions: [] as QuestionWithOptions[],
   currentIndex: 0,
   answers: new Map<string, string>(),
   score: 0,
@@ -42,9 +48,10 @@ const initialState = {
   totalTime: 0,
   isFinished: false,
   isSubmitting: false,
+  questionStartTimes: new Map<string, number>(),
 };
 
-export const useExamStore = create<ExamState>((set) => ({
+export const useExamStore = create<ExamState>((set, get) => ({
   ...initialState,
 
   setQuestions: (questions, timePerQuestion) =>
@@ -59,6 +66,7 @@ export const useExamStore = create<ExamState>((set) => ({
       streak: 0,
       maxStreak: 0,
       isFinished: false,
+      questionStartTimes: new Map(),
     }),
 
   selectAnswer: (questionId, optionId) =>
@@ -107,5 +115,27 @@ export const useExamStore = create<ExamState>((set) => ({
 
   setSubmitting: (submitting) => set({ isSubmitting: submitting }),
 
-  reset: () => set({ ...initialState, answers: new Map() }),
+  markQuestionStart: (questionId) =>
+    set((state) => {
+      // Only record first time (don't overwrite if revisited)
+      if (state.questionStartTimes.has(questionId)) return {};
+      const next = new Map(state.questionStartTimes);
+      next.set(questionId, Date.now());
+      return { questionStartTimes: next };
+    }),
+
+  getTimeTaken: (questionId) => {
+    const state = get();
+    const startMs = state.questionStartTimes.get(questionId);
+    if (!startMs) return state.totalTime;
+    const elapsedSec = Math.round((Date.now() - startMs) / 1000);
+    return Math.min(elapsedSec, state.totalTime);
+  },
+
+  reset: () =>
+    set({
+      ...initialState,
+      answers: new Map(),
+      questionStartTimes: new Map(),
+    }),
 }));

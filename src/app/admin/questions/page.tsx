@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import MaterialIcon from "@/components/MaterialIcon";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import {
@@ -19,6 +19,9 @@ import type { Batch, QuestionWithOptions } from "@/lib/database.types";
 
 interface QuestionForm {
   question_text: string;
+  question_type: "multiple_choice" | "true_false";
+  category: string;
+  difficulty: "easy" | "medium" | "hard";
   points: number;
   option_a: string;
   option_b: string;
@@ -26,6 +29,12 @@ interface QuestionForm {
   option_d: string;
   correct_answer: "A" | "B" | "C" | "D";
 }
+
+const DIFFICULTY_LABELS: Record<string, { label: string; color: string }> = {
+  easy: { label: "Easy", color: "bg-tertiary-container text-on-tertiary-container" },
+  medium: { label: "Medium", color: "bg-secondary-container text-on-secondary-container" },
+  hard: { label: "Hard", color: "bg-error-container/40 text-error" },
+};
 
 export default function QuestionsPage() {
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -38,9 +47,16 @@ export default function QuestionsPage() {
   const [editingQuestion, setEditingQuestion] = useState<QuestionWithOptions | null>(null);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterCategory, setFilterCategory] = useState<string>("");
+  const [filterDifficulty, setFilterDifficulty] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<QuestionForm>();
+  const { register, handleSubmit, reset, setValue, control, formState: { errors } } = useForm<QuestionForm>({
+    defaultValues: { question_type: "multiple_choice", difficulty: "medium", points: 10 },
+  });
+
+  const questionType = useWatch({ control, name: "question_type" });
+  const isTrueFalse = questionType === "true_false";
 
   const loadBatches = useCallback(async () => {
     try {
@@ -107,29 +123,35 @@ export default function QuestionsPage() {
     if (!selectedBatchId) return;
     setSaving(true);
     try {
-      const options = [
-        { option_text: data.option_a, option_label: "A" as const, is_correct: data.correct_answer === "A" },
-        { option_text: data.option_b, option_label: "B" as const, is_correct: data.correct_answer === "B" },
-        { option_text: data.option_c, option_label: "C" as const, is_correct: data.correct_answer === "C" },
-        { option_text: data.option_d, option_label: "D" as const, is_correct: data.correct_answer === "D" },
-      ];
+      const tf = data.question_type === "true_false";
+      const options = tf
+        ? [
+            { option_text: "Benar", option_label: "A" as const, is_correct: data.correct_answer === "A" },
+            { option_text: "Salah", option_label: "B" as const, is_correct: data.correct_answer === "B" },
+          ]
+        : [
+            { option_text: data.option_a, option_label: "A" as const, is_correct: data.correct_answer === "A" },
+            { option_text: data.option_b, option_label: "B" as const, is_correct: data.correct_answer === "B" },
+            { option_text: data.option_c, option_label: "C" as const, is_correct: data.correct_answer === "C" },
+            { option_text: data.option_d, option_label: "D" as const, is_correct: data.correct_answer === "D" },
+          ];
+
+      const shared = {
+        question_text: data.question_text,
+        question_type: data.question_type,
+        category: data.category?.trim() || null,
+        difficulty: data.difficulty,
+        points: data.points,
+        options,
+      };
 
       if (editingQuestion) {
-        await updateQuestion(editingQuestion.id, {
-          question_text: data.question_text,
-          points: data.points,
-          options,
-        });
+        await updateQuestion(editingQuestion.id, shared);
       } else {
-        await createQuestion(selectedBatchId, {
-          question_text: data.question_text,
-          points: data.points,
-          order_index: questions.length,
-          options,
-        });
+        await createQuestion(selectedBatchId, { ...shared, order_index: questions.length });
       }
 
-      reset();
+      reset({ question_type: "multiple_choice", difficulty: "medium", points: 10 });
       setShowForm(false);
       setEditingQuestion(null);
       await loadQuestions(selectedBatchId);
@@ -147,8 +169,10 @@ export default function QuestionsPage() {
     const optC = q.options.find((o) => o.option_label === "C");
     const optD = q.options.find((o) => o.option_label === "D");
     const correct = q.options.find((o) => o.is_correct);
-
     setValue("question_text", q.question_text);
+    setValue("question_type", q.question_type);
+    setValue("category", q.category ?? "");
+    setValue("difficulty", q.difficulty);
     setValue("points", q.points);
     setValue("option_a", optA?.option_text ?? "");
     setValue("option_b", optB?.option_text ?? "");
@@ -156,6 +180,7 @@ export default function QuestionsPage() {
     setValue("option_d", optD?.option_text ?? "");
     setValue("correct_answer", (correct?.option_label ?? "A") as "A" | "B" | "C" | "D");
     setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleDeleteQuestion = async (questionId: string) => {
@@ -180,11 +205,17 @@ export default function QuestionsPage() {
     }
   };
 
-  const filteredQuestions = searchQuery
-    ? questions.filter((q) =>
-        q.question_text.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : questions;
+  // Unique categories from loaded questions (for datalist suggestions)
+  const allCategories = Array.from(
+    new Set(questions.map((q) => q.category).filter(Boolean) as string[])
+  ).sort();
+
+  const filteredQuestions = questions.filter((q) => {
+    const matchSearch = !searchQuery || q.question_text.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchCat = !filterCategory || q.category === filterCategory;
+    const matchDiff = !filterDifficulty || q.difficulty === filterDifficulty;
+    return matchSearch && matchCat && matchDiff;
+  });
 
   if (loading && batches.length === 0) return <LoadingSpinner text="Loading..." />;
 
@@ -263,8 +294,9 @@ export default function QuestionsPage() {
                   {editingQuestion ? "Edit Question" : "Add New Question"}
                 </h3>
                 <form onSubmit={handleSubmit(onSubmitQuestion)} className="space-y-4">
+                  {/* Question text */}
                   <div>
-                    <label className="block text-on-surface-variant text-sm font-medium mb-1">Question Text</label>
+                    <label className="block text-on-surface-variant text-sm font-medium mb-1">Question Text *</label>
                     <textarea
                       {...register("question_text", { required: "Question text is required" })}
                       className={inputClasses}
@@ -276,34 +308,37 @@ export default function QuestionsPage() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(["A", "B", "C", "D"] as const).map((label) => (
-                      <div key={label}>
-                        <label className="block text-on-surface-variant text-sm font-medium mb-1">Option {label}</label>
-                        <input
-                          {...register(`option_${label.toLowerCase()}` as keyof QuestionForm, { required: "Required" })}
-                          className={inputClasses}
-                          placeholder={`Option ${label}`}
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Type / Difficulty / Category / Points row */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div>
-                      <label className="block text-on-surface-variant text-sm font-medium mb-1">Correct Answer</label>
-                      <select
-                        {...register("correct_answer", { required: "Required" })}
-                        className={inputClasses}
-                      >
-                        <option value="A">A</option>
-                        <option value="B">B</option>
-                        <option value="C">C</option>
-                        <option value="D">D</option>
+                      <label className="block text-on-surface-variant text-xs font-medium mb-1">Type</label>
+                      <select {...register("question_type")} className={inputClasses}>
+                        <option value="multiple_choice">Multiple Choice</option>
+                        <option value="true_false">True / False</option>
                       </select>
                     </div>
                     <div>
-                      <label className="block text-on-surface-variant text-sm font-medium mb-1">Points</label>
+                      <label className="block text-on-surface-variant text-xs font-medium mb-1">Difficulty</label>
+                      <select {...register("difficulty")} className={inputClasses}>
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-on-surface-variant text-xs font-medium mb-1">Category</label>
+                      <input
+                        {...register("category")}
+                        className={inputClasses}
+                        placeholder="e.g. Leadership"
+                        list="category-suggestions"
+                      />
+                      <datalist id="category-suggestions">
+                        {allCategories.map((c) => <option key={c} value={c} />)}
+                      </datalist>
+                    </div>
+                    <div>
+                      <label className="block text-on-surface-variant text-xs font-medium mb-1">Points</label>
                       <input
                         type="number"
                         {...register("points", {
@@ -319,6 +354,57 @@ export default function QuestionsPage() {
                     </div>
                   </div>
 
+                  {/* Options — conditional on question_type */}
+                  {isTrueFalse ? (
+                    <div>
+                      <label className="block text-on-surface-variant text-sm font-medium mb-2">Correct Answer</label>
+                      <div className="flex gap-3">
+                        {(["A", "B"] as const).map((val) => (
+                          <label key={val} className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-outline-variant/30 cursor-pointer">
+                            <input
+                              type="radio"
+                              value={val}
+                              {...register("correct_answer", { required: "Select correct answer" })}
+                              className="accent-primary"
+                            />
+                            <span className="font-bold text-sm">{val === "A" ? "✓ Benar (True)" : "✗ Salah (False)"}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {errors.correct_answer && <p className="text-error text-xs mt-1">{errors.correct_answer.message}</p>}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {(["A", "B", "C", "D"] as const).map((label) => (
+                          <div key={label}>
+                            <label className="block text-on-surface-variant text-sm font-medium mb-1">Option {label}</label>
+                            <input
+                              {...register((`option_${label.toLowerCase()}`) as keyof QuestionForm, { required: "Required" })}
+                              className={inputClasses}
+                              placeholder={`Option ${label}`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-on-surface-variant text-sm font-medium mb-1">Correct Answer</label>
+                          <select
+                            {...register("correct_answer", { required: "Required" })}
+                            className={inputClasses}
+                          >
+                            <option value="A">A</option>
+                            <option value="B">B</option>
+                            <option value="C">C</option>
+                            <option value="D">D</option>
+                          </select>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
                   <div className="flex gap-3">
                     <button
                       type="submit"
@@ -333,7 +419,7 @@ export default function QuestionsPage() {
                         onClick={() => {
                           setEditingQuestion(null);
                           setShowForm(false);
-                          reset();
+                          reset({ question_type: "multiple_choice", difficulty: "medium", points: 10 });
                         }}
                         className={btnSecondary + " py-2.5 px-5"}
                       >
@@ -390,23 +476,43 @@ export default function QuestionsPage() {
           </div>
 
           {/* Search and List */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
-            <h3 className="text-on-surface-variant text-sm font-medium">
-              {questions.length} question{questions.length !== 1 ? "s" : ""} in this batch
-              {searchQuery && ` (${filteredQuestions.length} matching)`}
+          <div className="flex flex-wrap gap-3 mb-4 items-center">
+            <h3 className="text-on-surface-variant text-sm font-medium mr-1">
+              {questions.length} question{questions.length !== 1 ? "s" : ""}
+              {(filterCategory || filterDifficulty || searchQuery) && ` (${filteredQuestions.length} shown)`}
             </h3>
             {questions.length > 3 && (
-              <div className="relative w-full md:w-72">
-                <MaterialIcon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant text-lg" />
+              <div className="relative">
+                <MaterialIcon name="search" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-outline-variant text-sm" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search questions..."
-                  className="w-full bg-surface-container-lowest border-2 border-outline-variant/30 rounded-lg pl-10 pr-3 py-2.5 text-sm text-on-surface focus:border-primary focus:outline-none transition-colors"
+                  className="bg-surface-container-lowest border border-outline-variant/30 rounded-lg pl-8 pr-3 py-2 text-xs text-on-surface focus:border-primary focus:outline-none w-44"
                 />
               </div>
             )}
+            {allCategories.length > 0 && (
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-3 py-2 text-xs text-on-surface focus:border-primary focus:outline-none"
+              >
+                <option value="">All categories</option>
+                {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
+            <select
+              value={filterDifficulty}
+              onChange={(e) => setFilterDifficulty(e.target.value)}
+              className="bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-3 py-2 text-xs text-on-surface focus:border-primary focus:outline-none"
+            >
+              <option value="">All difficulties</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
           </div>
 
           {loading ? (
@@ -415,51 +521,71 @@ export default function QuestionsPage() {
             <div className="bg-white rounded-xl bubbly-shadow p-8 text-center">
               <MaterialIcon name="quiz" className="text-5xl text-outline-variant mb-3" />
               <p className="text-on-surface-variant">
-                {searchQuery ? "No questions match your search." : "No questions yet. Add one above or upload an Excel file."}
+                {searchQuery || filterCategory || filterDifficulty
+                  ? "No questions match the current filters."
+                  : "No questions yet. Add one above or upload an Excel file."}
               </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredQuestions.map((q, idx) => (
-                <div key={q.id} className="bg-white rounded-xl bubbly-shadow p-5">
-                  <div className="flex gap-4">
-                    <span className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-sm font-black shrink-0">
-                      {idx + 1}
-                    </span>
-                    <div className="flex-1">
-                      <p className="text-on-surface text-sm font-medium mb-3">{q.question_text}</p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {q.options.map((opt) => (
-                          <div
-                            key={opt.id}
-                            className={`text-xs px-3 py-2 rounded-lg border ${
-                              opt.is_correct
-                                ? "border-tertiary bg-tertiary-container/30 text-on-tertiary-container font-bold"
-                                : "border-outline-variant/20 text-on-surface-variant"
-                            }`}
-                          >
-                            <span className="font-bold">{opt.option_label}.</span> {opt.option_text}
-                            {opt.is_correct && <MaterialIcon name="check_circle" className="text-sm ml-1 text-tertiary inline" />}
+              {filteredQuestions.map((q, idx) => {
+                const diff = DIFFICULTY_LABELS[q.difficulty] ?? DIFFICULTY_LABELS.medium;
+                return (
+                  <div key={q.id} className="bg-white rounded-xl bubbly-shadow p-5">
+                    <div className="flex gap-4">
+                      <span className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-sm font-black shrink-0">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        {/* Badges */}
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {q.question_type === "true_false" && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container uppercase">True/False</span>
+                          )}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${diff.color}`}>
+                            {diff.label}
+                          </span>
+                          {q.category && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant uppercase">
+                              {q.category}
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-on-surface text-sm font-medium mb-3">{q.question_text}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {q.options.map((opt) => (
+                            <div
+                              key={opt.id}
+                              className={`text-xs px-3 py-2 rounded-lg border ${
+                                opt.is_correct
+                                  ? "border-tertiary bg-tertiary-container/30 text-on-tertiary-container font-bold"
+                                  : "border-outline-variant/20 text-on-surface-variant"
+                              }`}
+                            >
+                              <span className="font-bold">{opt.option_label}.</span> {opt.option_text}
+                              {opt.is_correct && <MaterialIcon name="check_circle" className="text-sm ml-1 text-tertiary inline" />}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex justify-between items-center mt-3">
+                          <span className="text-on-surface-variant text-xs flex items-center gap-1">
+                            <MaterialIcon name="star" className="text-sm text-primary" fill /> {q.points} pts
+                          </span>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleEditQuestion(q)} className={btnSecondary}>
+                              <MaterialIcon name="edit" className="text-sm" /> Edit
+                            </button>
+                            <button onClick={() => handleDeleteQuestion(q.id)} className={btnDanger}>
+                              <MaterialIcon name="delete" className="text-sm" />
+                            </button>
                           </div>
-                        ))}
-                      </div>
-                      <div className="flex justify-between items-center mt-3">
-                        <span className="text-on-surface-variant text-xs flex items-center gap-1">
-                          <MaterialIcon name="star" className="text-sm text-primary" fill /> {q.points} pts
-                        </span>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleEditQuestion(q)} className={btnSecondary}>
-                            <MaterialIcon name="edit" className="text-sm" /> Edit
-                          </button>
-                          <button onClick={() => handleDeleteQuestion(q.id)} className={btnDanger}>
-                            <MaterialIcon name="delete" className="text-sm" />
-                          </button>
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>

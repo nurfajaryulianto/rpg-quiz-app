@@ -1,11 +1,44 @@
 import { supabase } from "@/lib/supabase";
-import type { QuestionWithOptions, ExamSession } from "@/lib/database.types";
+import type { QuestionWithOptions, ExamSession, Batch } from "@/lib/database.types";
 import { shuffleArray, calculateXP, calculateScore } from "@/utils/gamification";
 
 /**
- * Fetch questions for a batch, with shuffled options.
+ * Validate that the current time is within the batch's access window.
+ * Throws a user-friendly error if the batch cannot be accessed right now.
  */
-export async function fetchExamQuestions(batchId: string): Promise<QuestionWithOptions[]> {
+export function assertBatchAccessible(batch: Batch): void {
+  const now = Date.now();
+
+  if (!batch.is_active) {
+    throw new Error("This quest is not currently active.");
+  }
+
+  if (batch.start_time) {
+    const start = new Date(batch.start_time).getTime();
+    if (now < start) {
+      const diff = Math.ceil((start - now) / 60000);
+      throw new Error(
+        `This exam hasn't started yet. It opens in ${diff} minute${diff !== 1 ? "s" : ""}.`
+      );
+    }
+  }
+
+  if (batch.end_time) {
+    const end = new Date(batch.end_time).getTime();
+    if (now > end) {
+      throw new Error("The exam window for this quest has closed.");
+    }
+  }
+}
+
+/**
+ * Fetch questions for a batch, respecting the stored question_order (for randomization).
+ * Options are always shuffled per-request to prevent pattern memorisation.
+ */
+export async function fetchExamQuestions(
+  batchId: string,
+  questionOrder: string[] | null
+): Promise<QuestionWithOptions[]> {
   const { data, error } = await supabase
     .from("questions")
     .select("*, options(*)")
@@ -15,31 +48,63 @@ export async function fetchExamQuestions(batchId: string): Promise<QuestionWithO
   if (error) throw error;
   if (!data || data.length === 0) throw new Error("No questions found for this batch");
 
-  // Shuffle options for each question
-  return data.map((q) => ({
+  let questions = data as QuestionWithOptions[];
+
+  // Apply per-participant question order if present
+  if (questionOrder && questionOrder.length > 0) {
+    const orderMap = new Map(questionOrder.map((id, idx) => [id, idx]));
+    questions = [...questions].sort(
+      (a, b) => (orderMap.get(a.id) ?? 9999) - (orderMap.get(b.id) ?? 9999)
+    );
+  }
+
+  // Always shuffle answer options to prevent pattern memorisation
+  return questions.map((q) => ({
     ...q,
     options: shuffleArray(q.options),
   }));
 }
 
 /**
- * Start an exam session.
+ * Start (or resume) an exam session.
+ * On first start, generates a randomised question_order if the batch requires it.
+ * Uses a single upsert-like pattern to avoid race conditions on double-clicks.
  */
-export async function startExamSession(participantId: string, batchId: string): Promise<ExamSession> {
-  // Check if session already exists
-  const { data: existing } = await supabase
+export async function startExamSession(
+  participantId: string,
+  batchId: string,
+  batch: Batch
+): Promise<ExamSession> {
+  // Check if session already exists — use .maybeSingle() to avoid 406 errors
+  const { data: existing, error: fetchError } = await supabase
     .from("exam_sessions")
     .select("*")
     .eq("participant_id", participantId)
     .eq("batch_id", batchId)
-    .single();
+    .maybeSingle();
+
+  if (fetchError) throw fetchError;
 
   const existingSession = existing as ExamSession | null;
   if (existingSession) {
     if (existingSession.status === "completed" || existingSession.status === "timed_out") {
-      throw new Error("You have already completed this quiz");
+      throw new Error("You have already completed this quest.");
     }
-    return existingSession;
+    return existingSession; // Resume in-progress session
+  }
+
+  // Build question_order for randomised batches
+  let questionOrder: string[] | null = null;
+  if (batch.randomize_questions) {
+    const { data: qs } = await supabase
+      .from("questions")
+      .select("id")
+      .eq("batch_id", batchId)
+      .order("order_index", { ascending: true });
+
+    if (qs && qs.length > 0) {
+      questionOrder = shuffleArray(qs.map((q: { id: string }) => q.id));
+    }
   }
 
   const { data, error } = await supabase
@@ -48,16 +113,31 @@ export async function startExamSession(participantId: string, batchId: string): 
       participant_id: participantId,
       batch_id: batchId,
       status: "in_progress",
+      question_order: questionOrder,
     })
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    // If a concurrent request already inserted, fetch and return that session
+    if (error.code === "23505") {
+      const { data: race } = await supabase
+        .from("exam_sessions")
+        .select("*")
+        .eq("participant_id", participantId)
+        .eq("batch_id", batchId)
+        .single();
+      if (race) return race as ExamSession;
+    }
+    throw error;
+  }
+
   return data as ExamSession;
 }
 
 /**
  * Submit an answer for a question.
+ * time_taken_seconds: actual seconds elapsed since the question was shown.
  */
 export async function submitAnswer(params: {
   participantId: string;
@@ -68,6 +148,7 @@ export async function submitAnswer(params: {
   points: number;
   streakCount: number;
   timeRemainingRatio: number;
+  timeTakenSeconds: number;
 }) {
   const xpEarned = calculateXP({
     isCorrect: params.isCorrect,
@@ -94,6 +175,7 @@ export async function submitAnswer(params: {
       points_earned: pointsEarned,
       xp_earned: xpEarned,
       streak_count: params.streakCount,
+      time_taken_seconds: params.timeTakenSeconds,
     })
     .select()
     .single();
@@ -103,7 +185,7 @@ export async function submitAnswer(params: {
 }
 
 /**
- * Finish an exam session and update participant stats.
+ * Finish an exam session and update participant cumulative stats.
  */
 export async function finishExam(params: {
   participantId: string;
@@ -113,7 +195,7 @@ export async function finishExam(params: {
   maxStreak: number;
   status: "completed" | "timed_out";
 }) {
-  // Update exam session
+  // Update exam session atomically first
   const { error: sessionError } = await supabase
     .from("exam_sessions")
     .update({
@@ -128,7 +210,7 @@ export async function finishExam(params: {
 
   if (sessionError) throw sessionError;
 
-  // Update participant cumulative stats
+  // Read current participant stats
   const { data: pData, error: pError } = await supabase
     .from("participants")
     .select("xp, total_score, quizzes_taken")
@@ -142,7 +224,6 @@ export async function finishExam(params: {
   const newScore = (p.total_score ?? 0) + params.totalScore;
   const newQuizzes = (p.quizzes_taken ?? 0) + 1;
 
-  // Calculate new level from XP
   const { getLevelFromXP } = await import("@/utils/gamification");
   const newLevel = getLevelFromXP(newXP);
 
@@ -162,9 +243,12 @@ export async function finishExam(params: {
 }
 
 /**
- * Check if a participant has already done a batch.
+ * Get an existing exam session for a participant+batch (null if none).
  */
-export async function getExamSession(participantId: string, batchId: string): Promise<ExamSession | null> {
+export async function getExamSession(
+  participantId: string,
+  batchId: string
+): Promise<ExamSession | null> {
   const { data, error } = await supabase
     .from("exam_sessions")
     .select("*")
@@ -175,3 +259,4 @@ export async function getExamSession(participantId: string, batchId: string): Pr
   if (error) throw error;
   return data;
 }
+

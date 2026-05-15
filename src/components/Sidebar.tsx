@@ -11,7 +11,8 @@ const navItems = [
   { href: "/leaderboard", id: "leaderboard", label: "Leaderboard", icon: "leaderboard" },
   { href: "/inventory", id: "inventory",   label: "Inventory",   icon: "backpack" },
   { href: "/character", id: "character",   label: "Character",   icon: "person" },
-  { href: "/admin",     id: "admin",       label: "Admin",       icon: "shield_person", fill: true },
+  { href: "/admin",     id: "admin",       label: "Admin",       icon: "shield_person", fill: true, adminOnly: true },
+  { href: "/admin/analytics", id: "analytics", label: "Analytics", icon: "insights", fill: true, adminOnly: true },
 ];
 
 export default function Sidebar() {
@@ -46,7 +47,7 @@ export default function Sidebar() {
 
       <nav className="flex-1 space-y-1">
         {navItems
-          .filter((item) => item.id !== "admin" || participant?.role === "admin")
+          .filter((item) => !item.adminOnly || participant?.role === "admin")
           .map((item) => (
             <button
               key={item.id}
