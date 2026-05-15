@@ -84,81 +84,99 @@ function buildAllFrames(gender: Gender, hair: number, outfit: number, acc: numbe
 interface HeroCardProps {
   h: HeroDef;
   idx: number;
-  gender: Gender;
   onSelect: () => void;
 }
 
-function HeroCard({ h, idx, gender, onSelect }: HeroCardProps) {
-  const pr = PRESETS[h.id][gender];
-  const allFrames = buildAllFrames(gender, pr.hair, pr.outfit, pr.acc, pr.weapon);
-  const [cardViewAngle, setCardViewAngle] = useState(1);
-
+function HeroCard({ h, idx, onSelect }: HeroCardProps) {
   return (
     <motion.div
       key={h.id}
-      className="group relative flex flex-col items-center rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.06] to-white/[0.02] p-5 pt-6 text-center backdrop-blur-sm transition-all hover:border-white/[0.15] hover:shadow-[0_20px_60px_rgba(0,0,0,0.3)]"
+      className="group relative flex flex-col items-center rounded-2xl border border-white/[0.08] bg-gradient-to-b from-white/[0.06] to-white/[0.02] overflow-hidden text-center backdrop-blur-sm transition-all hover:border-white/[0.18] hover:shadow-[0_20px_60px_rgba(0,0,0,0.3)]"
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 + idx * 0.1 }}
-      whileHover={{ y: -8, scale: 1.02 }}
+      whileHover={{ y: -6, scale: 1.015 }}
     >
-      {/* glow on hover */}
-      <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity group-hover:opacity-100" style={{ boxShadow: `inset 0 1px 0 ${h.accent}44, 0 0 60px ${h.glow}` }} />
+      {/* accent glow border on hover */}
+      <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ boxShadow: `inset 0 1px 0 ${h.accent}55, 0 0 60px ${h.glow}` }} />
 
       {h.badge && (
-        <span className="absolute -top-2.5 right-4 z-20 rounded-full border border-amber-400/30 bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-[0_4px_12px_rgba(251,191,36,0.3)]">
+        <span className="absolute top-3 right-3 z-20 rounded-full border border-amber-400/30 bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-[0_4px_12px_rgba(251,191,36,0.3)]">
           {h.badge}
         </span>
       )}
 
-      <div className="mb-5 mt-1">
-        <CharacterSpriteViewer
-          frames={allFrames}
-          angle={cardViewAngle}
-          onAngleChange={setCardViewAngle}
-          accentColor={h.accent}
-          size="sm"
+      {/* ── Hero Illustration Image ── */}
+      <div className="relative w-full" style={{ aspectRatio: "4/3", overflow: "hidden", background: "rgba(255,255,255,0.04)" }}>
+        {/* Radial glow behind character */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: `radial-gradient(ellipse at 50% 55%, ${h.glow} 0%, transparent 60%)`,
+          }}
         />
-      </div>
-
-      <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: `${h.accent}22`, boxShadow: `0 0 16px ${h.accent}22` }}>
-        <MaterialIcon name={h.icon} className="text-base" style={{ color: h.accent }} />
-      </div>
-      <p className="text-[10px] font-bold uppercase tracking-[0.25em]" style={{ color: h.accent }}>{h.title}</p>
-      <h3 className="mt-1 text-2xl font-black text-white">{h.name}</h3>
-      <p className="mt-2 text-[11px] leading-relaxed text-white/40">{h.desc}</p>
-
-      <div className="mt-5 w-full space-y-2.5">
-        {(Object.entries(h.stats) as [string, number][]).map(([k, v]) => (
-          <div key={k} className="flex items-center gap-3">
-            <span className="w-8 text-right text-[10px] font-black" style={{ color: STAT_COLORS[k] }}>{STAT_LABELS[k]}</span>
-            <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${v * 20}%` }}
-                transition={{ delay: 0.4 + idx * 0.1, duration: 0.6 }}
-                className="h-full rounded-full"
-                style={{ background: `linear-gradient(90deg, ${STAT_COLORS[k]}, ${STAT_COLORS[k]}88)`, boxShadow: `0 0 8px ${STAT_COLORS[k]}44` }}
-              />
-            </div>
-            <span className="w-4 text-[10px] font-bold text-white/30">{v}</span>
+        {/* Hero class illustration */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`/heroes/${h.id}.jpg`}
+          alt={h.name}
+          className="relative z-10 w-full h-full transition-transform duration-500 group-hover:scale-105"
+          draggable={false}
+          style={{ objectFit: "contain", objectPosition: "50% 50%", padding: "4px 8px 0" }}
+        />
+        {/* Bottom fade to card bg */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-20 z-20"
+          style={{
+            background: `linear-gradient(to bottom, transparent, rgba(13,18,32,0.96))`,
+          }}
+        />
+        {/* Class title over image bottom */}
+        <div className="absolute bottom-3 left-0 right-0 z-30 flex items-center justify-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: `${h.accent}33` }}>
+            <MaterialIcon name={h.icon} className="text-sm" style={{ color: h.accent }} />
           </div>
-        ))}
+          <span className="text-[10px] font-black uppercase tracking-[0.25em]" style={{ color: h.accent }}>{h.title}</span>
+        </div>
       </div>
 
-      <motion.button
-        type="button"
-        whileTap={{ scale: 0.97 }}
-        onClick={onSelect}
-        className="mt-4 w-full rounded-xl border py-3 text-sm font-black transition-all"
-        style={{
-          borderColor: `${h.accent}33`,
-          background: `linear-gradient(135deg, ${h.accent}15, ${h.accent}08)`,
-          color: h.accent,
-        }}
-      >
-        Select Class
-      </motion.button>
+      {/* ── Card body ── */}
+      <div className="w-full px-5 pb-5 pt-2">
+        <h3 className="text-xl font-black text-white">{h.name}</h3>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-white/40">{h.desc}</p>
+
+        <div className="mt-4 w-full space-y-2.5">
+          {(Object.entries(h.stats) as [string, number][]).map(([k, v]) => (
+            <div key={k} className="flex items-center gap-3">
+              <span className="w-8 text-right text-[10px] font-black" style={{ color: STAT_COLORS[k] }}>{STAT_LABELS[k]}</span>
+              <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${v * 20}%` }}
+                  transition={{ delay: 0.4 + idx * 0.1, duration: 0.6 }}
+                  className="h-full rounded-full"
+                  style={{ background: `linear-gradient(90deg, ${STAT_COLORS[k]}, ${STAT_COLORS[k]}88)`, boxShadow: `0 0 8px ${STAT_COLORS[k]}44` }}
+                />
+              </div>
+              <span className="w-4 text-[10px] font-bold text-white/30">{v}</span>
+            </div>
+          ))}
+        </div>
+
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.97 }}
+          onClick={onSelect}
+          className="mt-4 w-full rounded-xl border py-3 text-sm font-black transition-all"
+          style={{
+            borderColor: `${h.accent}33`,
+            background: `linear-gradient(135deg, ${h.accent}15, ${h.accent}08)`,
+            color: h.accent,
+          }}
+        >
+          Select Class
+        </motion.button>
+      </div>
     </motion.div>
   );
 }
@@ -342,7 +360,7 @@ function Inner() {
               {/* hero cards */}
               <div className="mx-auto grid w-full max-w-5xl flex-1 gap-5 px-4 pb-10 md:grid-cols-3 md:px-8">
                 {HEROES.map((h, idx) => (
-                  <HeroCard key={h.id} h={h} idx={idx} gender={gender} onSelect={() => selectHero(h.id)} />
+                  <HeroCard key={h.id} h={h} idx={idx} onSelect={() => selectHero(h.id)} />
                 ))}
               </div>
 

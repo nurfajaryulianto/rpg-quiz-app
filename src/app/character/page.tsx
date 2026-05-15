@@ -11,7 +11,7 @@ import CharacterSpriteViewer from "@/components/ui/CharacterSpriteViewer";
 import { getXPProgress, getLevelTitle } from "@/utils/gamification";
 import { supabase } from "@/lib/supabase";
 import {
-  DATA, TABS, TAB_LABELS, CHAR_NAMES,
+  DATA, TABS, TAB_LABELS, ANGLE_LABELS, CHAR_NAMES,
   type Gender, type Category,
 } from "@/utils/characterData";
 import { buildCharacterSVG } from "@/utils/characterRenderer";
@@ -138,22 +138,112 @@ function CharacterInner() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
 
-        {/* ── LEFT: 3D viewer + controls ── */}
+        {/* ── LEFT: class illustration ── */}
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
-          className="flex flex-col items-center gap-4"
+          className="flex flex-col items-center"
         >
-          {/* Character viewer */}
-          <CharacterSpriteViewer
-            frames={allFrames}
-            angle={angle}
-            onAngleChange={(a) => { setAngle(a); triggerPop(); }}
-            accentColor={meta.accent}
-            name={charName}
-            size="lg"
-          />
+          {/* Ornate frame around illustration */}
+          <div
+            className="relative overflow-hidden rounded-sm"
+            style={{
+              width: 240,
+              background: "linear-gradient(180deg, #090d1c 0%, #060910 100%)",
+              boxShadow: [
+                `0 0 0 3px #3a2608`,
+                `0 0 0 5px ${meta.accent}`,
+                `0 0 0 6px #261808`,
+                `0 0 0 8px #5a3c10`,
+                `0 0 32px ${meta.glow}`,
+                `inset 0 0 40px rgba(0,0,0,0.6)`,
+              ].join(", "),
+            }}
+          >
+            {/* Accent tint overlay */}
+            <div
+              className="absolute inset-0 z-10 pointer-events-none"
+              style={{ background: `radial-gradient(ellipse at 50% 30%, ${meta.glow} 0%, transparent 60%)` }}
+            />
+            {/* Scanlines */}
+            <div
+              className="absolute inset-0 z-20 pointer-events-none"
+              style={{ backgroundImage: "repeating-linear-gradient(to bottom,transparent 0px,transparent 3px,rgba(0,0,0,0.06) 3px,rgba(0,0,0,0.06) 4px)" }}
+            />
+            {/* Class illustration */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/heroes/${heroClass}.jpg`}
+              alt={meta.title}
+              className="relative z-0 w-full"
+              style={{ aspectRatio: "4/3", objectFit: "contain", objectPosition: "50% 50%", display: "block", padding: "8px 12px 0" }}
+              draggable={false}
+            />
+            {/* Name bar at bottom */}
+            <div
+              className="absolute bottom-0 left-0 right-0 z-30 py-2 text-center"
+              style={{ background: `linear-gradient(to top, rgba(0,0,0,0.92) 70%, transparent)` }}
+            >
+              <p className="text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: meta.accent }}>{charName}</p>
+              <p className="text-[8px] font-bold uppercase tracking-[0.15em] text-white/30">{ANGLE_LABELS[angle]}</p>
+            </div>
+            {/* Top shimmer line */}
+            <div
+              className="absolute top-0 left-0 right-0 h-px z-30"
+              style={{ background: `linear-gradient(90deg, transparent, ${meta.accent}cc 40%, ${meta.accent}dd 50%, ${meta.accent}cc 60%, transparent)` }}
+            />
+            {/* Corners */}
+            {([
+              "top-0 left-0",
+              "top-0 right-0 scale-x-[-1]",
+              "bottom-0 left-0 scale-y-[-1]",
+              "bottom-0 right-0 scale-[-1]",
+            ] as const).map((pos, i) => (
+              <svg key={i} width="20" height="20" viewBox="0 0 20 20" className={`absolute ${pos} z-40`}>
+                <polygon points="10,0 20,0 20,3.5 3.5,3.5 3.5,20 0,20 0,0" fill="#0d0803"/>
+                <polygon points="10,1 19,1 19,3.5 3.5,3.5 3.5,19 1,19 1,1" fill="#5a3c10"/>
+                <polygon points="10,2.2 17.5,2.2 17.5,3.5 3.5,3.5 3.5,17.5 2.2,17.5 2.2,2.2" fill={meta.accent} opacity="0.9"/>
+                <polygon points="10,0 12.2,2.2 10,4.4 7.8,2.2" fill={meta.accent}/>
+              </svg>
+            ))}
+          </div>
+
+          {/* Direction dot indicators below frame */}
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => { setAngle(a => ((a - 1 + 8) % 8)); triggerPop(); }}
+              className="grid h-7 w-7 place-items-center rounded-lg bg-white/5 border border-white/10 text-white/40 hover:text-white/70 transition-colors"
+            >
+              <MaterialIcon name="chevron_left" className="text-base" />
+            </button>
+            <div className="flex items-center gap-1.5">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => { setAngle(i); triggerPop(); }}
+                  className="rounded-full transition-all"
+                  style={
+                    i === angle
+                      ? { width: 20, height: 8, backgroundColor: meta.accent, boxShadow: `0 0 8px ${meta.accent}66` }
+                      : { width: 6, height: 6, backgroundColor: "rgba(255,255,255,0.15)" }
+                  }
+                />
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => { setAngle(a => (a + 1) % 8); triggerPop(); }}
+              className="grid h-7 w-7 place-items-center rounded-lg bg-white/5 border border-white/10 text-white/40 hover:text-white/70 transition-colors"
+            >
+              <MaterialIcon name="chevron_right" className="text-base" />
+            </button>
+          </div>
+          <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.2em] text-white/25">
+            Direction · {ANGLE_LABELS[angle]}
+          </p>
         </motion.div>
 
         {/* ── RIGHT: info + actions ── */}

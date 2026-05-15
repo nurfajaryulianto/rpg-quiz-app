@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560" width="400" height="560">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0e0818"/>
+      <stop offset="100%" stop-color="#1a1030"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="55%">
+      <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ground" cx="50%" cy="100%" r="50%">
+      <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="400" height="560" fill="url(#bg)"/>
+  <rect width="400" height="560" fill="url(#glow)"/>
+  <rect width="400" height="560" fill="url(#ground)"/>
+
+  <g opacity="0.06" stroke="#a78bfa" stroke-width="1">
+    <line x1="0" y1="112" x2="400" y2="112"/>
+    <line x1="0" y1="224" x2="400" y2="224"/>
+    <line x1="0" y1="336" x2="400" y2="336"/>
+    <line x1="0" y1="448" x2="400" y2="448"/>
+    <line x1="80" y1="0" x2="80" y2="560"/>
+    <line x1="160" y1="0" x2="160" y2="560"/>
+    <line x1="240" y1="0" x2="240" y2="560"/>
+    <line x1="320" y1="0" x2="320" y2="560"/>
+  </g>
+
+  <!-- Magic circles on ground -->
+  <ellipse cx="200" cy="500" rx="100" ry="20" fill="none" stroke="#a78bfa" stroke-width="1.5" opacity="0.3"/>
+  <ellipse cx="200" cy="500" rx="70" ry="14" fill="none" stroke="#c3a6ff" stroke-width="1" opacity="0.2"/>
+  <ellipse cx="200" cy="500" rx="90" ry="18" fill="#a78bfa" opacity="0.1"/>
+
+  <!-- Robe - main body -->
+  <path d="M150 210 Q130 280 118 380 L118 440 L282 440 L282 380 Q270 280 250 210Z" fill="#5a3880"/>
+  <path d="M150 210 Q130 280 118 380 L118 440 L282 440 L282 380 Q270 280 250 210Z" fill="none" stroke="#7a58a0" stroke-width="1.5"/>
+  <!-- Robe trim -->
+  <path d="M150 210 L250 210" stroke="#d4af37" stroke-width="3" opacity="0.8"/>
+  <path d="M118 440 L282 440" stroke="#d4af37" stroke-width="3" opacity="0.8"/>
+  <!-- Center design -->
+  <path d="M190 220 L200 260 L210 220" fill="#d4af37" opacity="0.6"/>
+  <path d="M200 260 L200 380" stroke="#d4af37" stroke-width="1.5" opacity="0.4"/>
+  <!-- Rune symbols -->
+  <text x="176" y="310" font-size="14" fill="#c3a6ff" opacity="0.5" text-anchor="middle">✦</text>
+  <text x="224" y="310" font-size="14" fill="#c3a6ff" opacity="0.5" text-anchor="middle">✦</text>
+  <text x="200" y="340" font-size="16" fill="#d4af37" opacity="0.5" text-anchor="middle">◆</text>
+
+  <!-- Sleeves -->
+  <path d="M150 210 Q120 230 104 300 L108 340 Q132 320 146 270Z" fill="#5a3880"/>
+  <path d="M250 210 Q280 230 296 300 L292 340 Q268 320 254 270Z" fill="#5a3880"/>
+  <!-- Sleeve trim -->
+  <rect x="96" y="296" width="22" height="50" rx="10" fill="#4a2870"/>
+  <rect x="282" y="296" width="22" height="50" rx="10" fill="#4a2870"/>
+
+  <!-- Head -->
+  <ellipse cx="200" cy="156" rx="52" ry="56" fill="#f8d0b0"/>
+  <!-- Wizard hat -->
+  <path d="M148 130 Q200 20 252 130Z" fill="#3a1868"/>
+  <path d="M140 138 L260 138 Q256 118 200 98 Q144 118 140 138Z" fill="#4a2878"/>
+  <rect x="140" y="130" width="120" height="12" rx="6" fill="#d4af37" opacity="0.9"/>
+  <!-- Hat star -->
+  <text x="200" y="78" font-size="20" fill="#d4af37" opacity="0.9" text-anchor="middle">★</text>
+  <!-- Eyes -->
+  <ellipse cx="184" cy="158" rx="8" ry="9" fill="white"/>
+  <ellipse cx="216" cy="158" rx="8" ry="9" fill="white"/>
+  <ellipse cx="184" cy="159" rx="5" ry="6" fill="#7040c0"/>
+  <ellipse cx="216" cy="159" rx="5" ry="6" fill="#7040c0"/>
+  <circle cx="184" cy="157" r="2" fill="black"/>
+  <circle cx="216" cy="157" r="2" fill="black"/>
+  <circle cx="183" cy="155" r="1.5" fill="white" opacity="0.9"/>
+  <circle cx="215" cy="155" r="1.5" fill="white" opacity="0.9"/>
+  <!-- Eyebrows -->
+  <path d="M176 148 Q184 144 192 148" stroke="#3a1810" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M208 148 Q216 144 224 148" stroke="#3a1810" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Nose -->
+  <path d="M196 168 Q200 174 204 168" stroke="#c09070" stroke-width="1.5" fill="none"/>
+  <!-- Smile -->
+  <path d="M188 182 Q200 192 212 182" stroke="#c07858" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Beard (for male wizard look) -->
+  <path d="M168 190 Q172 210 180 218 Q190 224 200 224 Q210 224 220 218 Q228 210 232 190" fill="#d8d0c8" opacity="0.7"/>
+
+  <!-- Staff (left hand) -->
+  <g transform="translate(104,190)">
+    <!-- Staff body -->
+    <rect x="-5" y="-30" width="10" height="230" rx="5" fill="#5a3810"/>
+    <!-- Orb top -->
+    <circle cx="0" cy="-46" r="22" fill="#1a0830" stroke="#a78bfa" stroke-width="2"/>
+    <circle cx="0" cy="-46" r="16" fill="#4030a0" opacity="0.8"/>
+    <circle cx="0" cy="-46" r="10" fill="#a78bfa" opacity="0.9"/>
+    <circle cx="-4" cy="-50" r="4" fill="white" opacity="0.6"/>
+    <!-- Lightning arcs -->
+    <path d="M-18 -58 Q-8 -46 0 -46" stroke="#60d0ff" stroke-width="1.5" fill="none" opacity="0.8"/>
+    <path d="M18 -58 Q8 -46 0 -46" stroke="#a078ff" stroke-width="1.5" fill="none" opacity="0.8"/>
+    <!-- Staff rings -->
+    <rect x="-7" y="40" width="14" height="7" rx="3.5" fill="#d4af37" opacity="0.8"/>
+    <rect x="-7" y="100" width="14" height="7" rx="3.5" fill="#d4af37" opacity="0.8"/>
+  </g>
+
+  <!-- Book (right hand) -->
+  <g transform="translate(296,280) rotate(-15)">
+    <rect x="-28" y="-36" width="56" height="70" rx="4" fill="#2a1050"/>
+    <rect x="-26" y="-34" width="52" height="66" rx="3" fill="#3a1870"/>
+    <rect x="-24" y="-32" width="22" height="62" rx="2" fill="#4a2890" opacity="0.7"/>
+    <text x="5" y="-8" font-size="14" fill="#d4af37" opacity="0.9" text-anchor="middle">✦</text>
+    <text x="5" y="14" font-size="10" fill="#c3a6ff" opacity="0.7" text-anchor="middle">◈</text>
+    <text x="5" y="32" font-size="10" fill="#c3a6ff" opacity="0.7" text-anchor="middle">◈</text>
+  </g>
+
+  <!-- Floating particles -->
+  <circle cx="280" cy="120" r="4" fill="#a78bfa" opacity="0.8"/>
+  <circle cx="300" cy="100" r="2.5" fill="#c3a6ff" opacity="0.6"/>
+  <circle cx="265" cy="105" r="3" fill="#d4af37" opacity="0.5"/>
+  <circle cx="110" cy="130" r="3.5" fill="#a78bfa" opacity="0.6"/>
+  <circle cx="90" cy="150" r="2" fill="#c3a6ff" opacity="0.5"/>
+  <!-- Magic sparkles -->
+  <text x="280" y="88" font-size="10" fill="#d4af37" opacity="0.6" text-anchor="middle">✦</text>
+  <text x="110" y="120" font-size="8" fill="#a78bfa" opacity="0.7" text-anchor="middle">✦</text>
+
+  <!-- Bottom label -->
+  <rect x="0" y="500" width="400" height="60" fill="#080410" opacity="0.8"/>
+  <text x="200" y="528" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="11" font-weight="bold" letter-spacing="4" fill="#a78bfa" opacity="0.5">REPLACE WITH</text>
+  <text x="200" y="548" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="13" font-weight="bold" letter-spacing="3" fill="#a78bfa">APPRENTICE ARTWORK</text>
+</svg>

@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560" width="400" height="560">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a0a08"/>
+      <stop offset="100%" stop-color="#2d1010"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="45%" r="50%">
+      <stop offset="0%" stop-color="#ff6b6b" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#ff6b6b" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ground" cx="50%" cy="100%" r="50%">
+      <stop offset="0%" stop-color="#ff6b6b" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#ff6b6b" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="400" height="560" fill="url(#bg)"/>
+  <rect width="400" height="560" fill="url(#glow)"/>
+  <rect width="400" height="560" fill="url(#ground)"/>
+
+  <!-- Subtle grid lines -->
+  <g opacity="0.06" stroke="#ff6b6b" stroke-width="1">
+    <line x1="0" y1="112" x2="400" y2="112"/>
+    <line x1="0" y1="224" x2="400" y2="224"/>
+    <line x1="0" y1="336" x2="400" y2="336"/>
+    <line x1="0" y1="448" x2="400" y2="448"/>
+    <line x1="80" y1="0" x2="80" y2="560"/>
+    <line x1="160" y1="0" x2="160" y2="560"/>
+    <line x1="240" y1="0" x2="240" y2="560"/>
+    <line x1="320" y1="0" x2="320" y2="560"/>
+  </g>
+
+  <!-- Placeholder character silhouette - Fighter (warrior with sword) -->
+  <!-- Ground shadow -->
+  <ellipse cx="200" cy="500" rx="90" ry="18" fill="#ff6b6b" opacity="0.2"/>
+
+  <!-- Body armor - main torso -->
+  <rect x="148" y="210" width="104" height="140" rx="14" fill="#b0b8cc"/>
+  <rect x="148" y="210" width="104" height="140" rx="14" fill="none" stroke="#d4dcf0" stroke-width="2" opacity="0.5"/>
+  <!-- Chest plate detail -->
+  <rect x="162" y="224" width="76" height="90" rx="8" fill="#8a9ab8"/>
+  <path d="M200 228 L200 310" stroke="#c0c8d8" stroke-width="2" opacity="0.5"/>
+  <path d="M168 258 L232 258" stroke="#c0c8d8" stroke-width="1.5" opacity="0.4"/>
+  <!-- Shoulder armor -->
+  <ellipse cx="140" cy="225" rx="24" ry="18" fill="#9aaac0"/>
+  <ellipse cx="260" cy="225" rx="24" ry="18" fill="#9aaac0"/>
+  <!-- Armor trim -->
+  <rect x="148" y="210" width="104" height="8" rx="4" fill="#d4af37" opacity="0.8"/>
+  <rect x="148" y="342" width="104" height="8" rx="4" fill="#d4af37" opacity="0.8"/>
+
+  <!-- Head -->
+  <ellipse cx="200" cy="170" rx="52" ry="56" fill="#f5c5a0"/>
+  <!-- Hair - short brown -->
+  <path d="M152 158 Q152 108 200 100 Q248 108 248 158 L240 144 Q226 118 200 116 Q174 118 160 144Z" fill="#5a3810"/>
+  <!-- Eyes -->
+  <ellipse cx="183" cy="168" rx="8" ry="9" fill="white"/>
+  <ellipse cx="217" cy="168" rx="8" ry="9" fill="white"/>
+  <ellipse cx="184" cy="169" rx="5" ry="6" fill="#3a5080"/>
+  <ellipse cx="218" cy="169" rx="5" ry="6" fill="#3a5080"/>
+  <circle cx="185" cy="167" r="2" fill="black"/>
+  <circle cx="219" cy="167" r="2" fill="black"/>
+  <circle cx="183" cy="165" r="1.5" fill="white" opacity="0.8"/>
+  <circle cx="217" cy="165" r="1.5" fill="white" opacity="0.8"/>
+  <!-- Eyebrows -->
+  <path d="M175 158 Q184 154 192 158" stroke="#4a2e10" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M208 158 Q216 154 225 158" stroke="#4a2e10" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Nose -->
+  <path d="M196 178 Q200 183 204 178" stroke="#c09070" stroke-width="1.5" fill="none"/>
+  <!-- Mouth - confident smile -->
+  <path d="M188 192 Q200 200 212 192" stroke="#c07858" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Arms -->
+  <rect x="110" y="218" width="32" height="90" rx="14" fill="#9aaac0"/>
+  <rect x="258" y="218" width="32" height="90" rx="14" fill="#9aaac0"/>
+  <!-- Gauntlets -->
+  <rect x="108" y="290" width="36" height="28" rx="8" fill="#7a8aa0"/>
+  <rect x="256" y="290" width="36" height="28" rx="8" fill="#7a8aa0"/>
+
+  <!-- Sword (right hand) -->
+  <g transform="translate(290,190) rotate(30)">
+    <!-- Blade -->
+    <rect x="-5" y="-130" width="10" height="160" rx="3" fill="#d0d8e8"/>
+    <rect x="-3" y="-130" width="4" height="160" fill="white" opacity="0.5"/>
+    <!-- Crossguard -->
+    <rect x="-22" y="26" width="44" height="10" rx="5" fill="#d4af37"/>
+    <!-- Handle -->
+    <rect x="-5" y="36" width="10" height="40" rx="4" fill="#5a3810"/>
+    <!-- Pommel -->
+    <circle cx="0" cy="78" r="8" fill="#d4af37"/>
+    <!-- Tip -->
+    <polygon points="0,-134 -4,-120 4,-120" fill="#b0b8c8"/>
+  </g>
+
+  <!-- Shield (left arm) -->
+  <g transform="translate(112,280)">
+    <path d="M0 -50 Q-38 -50 -40 -20 L-40 20 Q-40 50 0 60 Q40 50 40 20 L40 -20 Q38 -50 0 -50Z" fill="#4060b0"/>
+    <path d="M0 -50 Q-38 -50 -40 -20 L-40 20 Q-40 50 0 60 Q40 50 40 20 L40 -20 Q38 -50 0 -50Z" fill="none" stroke="#d4af37" stroke-width="3"/>
+    <!-- Lion emblem -->
+    <circle cx="0" cy="5" r="20" fill="#d4af37" opacity="0.3"/>
+    <text x="0" y="12" text-anchor="middle" font-size="22" fill="#d4af37">🦁</text>
+  </g>
+
+  <!-- Legs / Lower armor -->
+  <rect x="162" y="348" width="42" height="100" rx="10" fill="#8a9ab8"/>
+  <rect x="196" y="348" width="42" height="100" rx="10" fill="#8a9ab8"/>
+  <!-- Boots -->
+  <rect x="158" y="432" width="50" height="36" rx="8" fill="#4a3820"/>
+  <rect x="192" y="432" width="50" height="36" rx="8" fill="#4a3820"/>
+  <!-- Boot shine -->
+  <rect x="162" y="434" width="16" height="6" rx="3" fill="white" opacity="0.2"/>
+  <rect x="196" y="434" width="16" height="6" rx="3" fill="white" opacity="0.2"/>
+
+  <!-- Particle effects -->
+  <circle cx="310" cy="140" r="4" fill="#ff6b6b" opacity="0.7"/>
+  <circle cx="320" cy="160" r="2.5" fill="#ff9b5b" opacity="0.5"/>
+  <circle cx="295" cy="155" r="3" fill="#ffb070" opacity="0.4"/>
+  <circle cx="85" cy="300" r="3" fill="#ff6b6b" opacity="0.4"/>
+  <circle cx="75" cy="320" r="2" fill="#ff9b5b" opacity="0.3"/>
+
+  <!-- Bottom label -->
+  <rect x="0" y="500" width="400" height="60" fill="#0d0505" opacity="0.8"/>
+  <text x="200" y="528" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="11" font-weight="bold" letter-spacing="4" fill="#ff6b6b" opacity="0.5">REPLACE WITH</text>
+  <text x="200" y="548" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="13" font-weight="bold" letter-spacing="3" fill="#ff6b6b">FIGHTER ARTWORK</text>
+</svg>
