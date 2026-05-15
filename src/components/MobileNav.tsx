@@ -10,13 +10,14 @@ export default function MobileNav() {
   const { participant } = useAuthStore();
 
   const navItems = [
-    { href: "/", id: "home", icon: "home", label: "Home" },
-    { href: "/quests", id: "quests", icon: "foundation", label: "Quests" },
+    { href: "/",          id: "home",        icon: "home",         label: "Home" },
+    { href: "/quests",    id: "quests",       icon: "foundation",   label: "Quests" },
     ...(participant?.role === "admin"
       ? [{ href: "/admin", id: "admin", icon: "shield_person", label: "Admin", special: true }]
       : []),
     { href: "/leaderboard", id: "leaderboard", icon: "leaderboard", label: "Rank" },
-    { href: "/inventory", id: "inventory", icon: "backpack", label: "Items" },
+    { href: "/inventory", id: "inventory",    icon: "backpack",     label: "Items" },
+    { href: "/character", id: "character",    icon: "person",       label: "Profile" },
   ];
 
   const isActive = (href: string) => {

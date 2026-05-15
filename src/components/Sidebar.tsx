@@ -1,25 +1,23 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import MaterialIcon from "./MaterialIcon";
-import ConfirmDialog from "./ui/ConfirmDialog";
 import { useAuthStore } from "@/store/authStore";
 import { getXPProgress, getLevelTitle } from "@/utils/gamification";
 
 const navItems = [
-  { href: "/", id: "home", label: "Home", icon: "home" },
-  { href: "/quests", id: "quests", label: "Quests", icon: "foundation" },
+  { href: "/",          id: "home",        label: "Home",        icon: "home" },
+  { href: "/quests",    id: "quests",      label: "Quests",      icon: "foundation" },
   { href: "/leaderboard", id: "leaderboard", label: "Leaderboard", icon: "leaderboard" },
-  { href: "/inventory", id: "inventory", label: "Inventory", icon: "backpack" },
-  { href: "/admin", id: "admin", label: "Admin", icon: "shield_person", fill: true },
+  { href: "/inventory", id: "inventory",   label: "Inventory",   icon: "backpack" },
+  { href: "/character", id: "character",   label: "Character",   icon: "person" },
+  { href: "/admin",     id: "admin",       label: "Admin",       icon: "shield_person", fill: true },
 ];
 
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { participant, logout } = useAuthStore();
-  const [showLogout, setShowLogout] = useState(false);
+  const { participant } = useAuthStore();
 
   const levelTitle = participant ? getLevelTitle(participant.level) : "Novice";
 
@@ -69,32 +67,7 @@ export default function Sidebar() {
           ))}
       </nav>
 
-      <div className="px-4 mt-auto space-y-2">
-        <div className="border-t border-rose-100/50 pt-4">
-          <button
-            onClick={() => setShowLogout(true)}
-            className="w-full text-rose-700/70 px-6 py-2 flex items-center gap-4 hover:bg-rose-100/50 rounded-full transition-all"
-          >
-            <MaterialIcon name="logout" className="text-sm" />
-            <span className="text-sm font-semibold">Logout</span>
-          </button>
-        </div>
-      </div>
-
-      <ConfirmDialog
-        open={showLogout}
-        title="Leaving So Soon?"
-        message="Are you sure you want to log out of Maple Academy? Your progress is saved."
-        icon="logout"
-        confirmLabel="Log Out"
-        cancelLabel="Stay"
-        variant="danger"
-        onConfirm={() => {
-          logout();
-          router.push("/login");
-        }}
-        onCancel={() => setShowLogout(false)}
-      />
+      <div className="px-4 mt-auto pb-4" />
     </aside>
   );
 }

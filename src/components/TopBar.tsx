@@ -55,9 +55,17 @@ export default function TopBar() {
           >
             <MaterialIcon name="leaderboard" className="text-rose-600" />
           </button>
-          <div className="w-10 h-10 rounded-full bg-surface-container-highest border-2 border-primary-container overflow-hidden flex items-center justify-center">
+          <button
+            onClick={() => router.push("/character")}
+            title="My Character"
+            className={`w-10 h-10 rounded-full border-2 overflow-hidden flex items-center justify-center transition-all active:scale-95 hover:scale-105 ${
+              pathname === "/character"
+                ? "border-rose-500 bg-rose-100 shadow-[0_0_12px_rgba(244,63,94,0.3)]"
+                : "border-primary-container bg-surface-container-highest hover:border-rose-400"
+            }`}
+          >
             <MaterialIcon name="person" className="text-primary" fill />
-          </div>
+          </button>
         </div>
       </div>
     </header>
