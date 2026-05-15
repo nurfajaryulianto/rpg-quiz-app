@@ -7,11 +7,11 @@ import { useAuthStore } from "@/store/authStore";
 import AppShell from "@/components/AppShell";
 import MaterialIcon from "@/components/MaterialIcon";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
-import CharacterCylinder3D from "@/components/ui/CharacterCylinder3D";
+import CharacterSpriteViewer from "@/components/ui/CharacterSpriteViewer";
 import { getXPProgress, getLevelTitle } from "@/utils/gamification";
 import { supabase } from "@/lib/supabase";
 import {
-  DATA, TABS, TAB_LABELS, ANGLE_LABELS, CHAR_NAMES,
+  DATA, TABS, TAB_LABELS, CHAR_NAMES,
   type Gender, type Category,
 } from "@/utils/characterData";
 import { buildCharacterSVG } from "@/utils/characterRenderer";
@@ -145,95 +145,15 @@ function CharacterInner() {
           transition={{ delay: 0.1 }}
           className="flex flex-col items-center gap-4"
         >
-          {/* Seal Online ornate frame */}
-          <div
-            className="relative p-2.5 rounded-sm"
-            style={{
-              background: "linear-gradient(160deg, rgba(10,8,28,0.96), rgba(18,12,40,0.98))",
-              border: `2px solid ${meta.accent}55`,
-              boxShadow: `0 0 0 1px rgba(255,255,255,0.05), 0 0 40px ${meta.glow}, inset 0 0 30px rgba(0,0,0,0.5)`,
-            }}
-          >
-            {/* corner ornaments */}
-            {[
-              "-top-2 -left-2",
-              "-top-2 -right-2 scale-x-[-1]",
-              "-bottom-2 -left-2 scale-y-[-1]",
-              "-bottom-2 -right-2 scale-[-1]",
-            ].map((pos, i) => (
-              <div
-                key={i}
-                className={`absolute ${pos} h-4 w-4`}
-                style={{
-                  background: meta.accent,
-                  clipPath: "polygon(0 0,100% 0,100% 30%,30% 30%,30% 100%,0 100%)",
-                  opacity: 0.85,
-                }}
-              />
-            ))}
-
-            {/* top label bar */}
-            <div className="mb-2 flex items-center gap-2 px-1">
-              <div className="h-px flex-1" style={{ background: `linear-gradient(90deg,transparent,${meta.accent}88,transparent)` }} />
-              <span className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: meta.accent }}>
-                {charName}
-              </span>
-              <div className="h-px flex-1" style={{ background: `linear-gradient(90deg,transparent,${meta.accent}88,transparent)` }} />
-            </div>
-
-            <CharacterCylinder3D
-              frames={allFrames}
-              angle={angle}
-              onAngleChange={(a) => { setAngle(a); triggerPop(); }}
-              accentColor={meta.accent}
-              glowColor={meta.glow}
-              width={220}
-              height={270}
-              pop={pop}
-            />
-
-            {/* bottom label bar */}
-            <div className="mt-2 flex items-center gap-2 px-1">
-              <div className="h-px flex-1" style={{ background: `linear-gradient(90deg,transparent,${meta.accent}44,transparent)` }} />
-              <span className="text-[9px] font-bold" style={{ color: `${meta.accent}88` }}>
-                {ANGLE_LABELS[angle]} · Drag to rotate
-              </span>
-              <div className="h-px flex-1" style={{ background: `linear-gradient(90deg,transparent,${meta.accent}44,transparent)` }} />
-            </div>
-          </div>
-
-          {/* angle dot indicators */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => { setAngle(a => ((a - 1 + 8) % 8)); triggerPop(); }}
-              className="grid h-7 w-7 place-items-center rounded-lg bg-white/5 border border-white/10 text-white/40 hover:text-white/70 transition-colors"
-            >
-              <MaterialIcon name="chevron_left" className="text-base" />
-            </button>
-            <div className="flex items-center gap-1.5">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => { setAngle(i); triggerPop(); }}
-                  className="rounded-full transition-all"
-                  style={
-                    i === angle
-                      ? { width: 20, height: 10, backgroundColor: meta.accent, boxShadow: `0 0 8px ${meta.accent}66` }
-                      : { width: 6, height: 6, backgroundColor: "rgba(255,255,255,0.15)" }
-                  }
-                />
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => { setAngle(a => (a + 1) % 8); triggerPop(); }}
-              className="grid h-7 w-7 place-items-center rounded-lg bg-white/5 border border-white/10 text-white/40 hover:text-white/70 transition-colors"
-            >
-              <MaterialIcon name="chevron_right" className="text-base" />
-            </button>
-          </div>
+          {/* Character viewer */}
+          <CharacterSpriteViewer
+            frames={allFrames}
+            angle={angle}
+            onAngleChange={(a) => { setAngle(a); triggerPop(); }}
+            accentColor={meta.accent}
+            name={charName}
+            size="lg"
+          />
         </motion.div>
 
         {/* ── RIGHT: info + actions ── */}
@@ -402,25 +322,14 @@ function CharacterInner() {
               <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6">
                 {/* mini preview */}
                 <div className="flex flex-col items-center gap-3">
-                  <div
-                    className="p-2 rounded-sm"
-                    style={{
-                      background: "rgba(10,8,28,0.9)",
-                      border: `1px solid ${meta.accent}44`,
-                      boxShadow: `0 0 20px ${meta.glow}`,
-                    }}
-                  >
-                    <CharacterCylinder3D
-                      frames={buildAllFrames(gender, hair, outfit, acc, weapon)}
-                      angle={angle}
-                      onAngleChange={(a) => { setAngle(a); triggerPop(); }}
-                      accentColor={meta.accent}
-                      glowColor={meta.glow}
-                      width={140}
-                      height={172}
-                      pop={pop}
-                    />
-                  </div>
+                  <CharacterSpriteViewer
+                    frames={buildAllFrames(gender, hair, outfit, acc, weapon)}
+                    angle={angle}
+                    onAngleChange={(a) => { setAngle(a); triggerPop(); }}
+                    accentColor={meta.accent}
+                    size="sm"
+                    autoRotate={false}
+                  />
                   {/* gender toggle */}
                   <div className="flex rounded-full border border-white/[0.08] bg-white/[0.03] p-0.5 text-xs font-bold">
                     {(["f", "m"] as Gender[]).map(g => (

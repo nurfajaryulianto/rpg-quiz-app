@@ -9,12 +9,12 @@ import MaterialIcon from "@/components/MaterialIcon";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import AuthProvider from "@/components/AuthProvider";
 import {
-  DATA, TABS, TAB_LABELS, ANGLE_LABELS, CHAR_NAMES, STAT_MAP,
+  DATA, TABS, TAB_LABELS, CHAR_NAMES, STAT_MAP,
   type Gender, type Category,
 } from "@/utils/characterData";
 import { buildCharacterSVG } from "@/utils/characterRenderer";
 import type { AvatarConfig } from "@/lib/database.types";
-import CharacterCylinder3D from "@/components/ui/CharacterCylinder3D";
+import CharacterSpriteViewer from "@/components/ui/CharacterSpriteViewer";
 
 /* ═══════════════ types & constants ═══════════════ */
 
@@ -111,26 +111,15 @@ function HeroCard({ h, idx, gender, onSelect }: HeroCardProps) {
         </span>
       )}
 
-      {/* Seal Online-style frame around character */}
-      <div className="relative mb-3 flex items-center justify-center">
-        <div className="absolute inset-0 pointer-events-none" style={{ border: `1px solid ${h.accent}33`, borderRadius: 6, boxShadow: `inset 0 0 20px ${h.glow}, 0 0 12px ${h.glow}` }} />
-        <div className="absolute -top-1.5 -left-1.5 h-3 w-3 rounded-sm" style={{ background: h.accent, opacity: 0.7 }} />
-        <div className="absolute -top-1.5 -right-1.5 h-3 w-3 rounded-sm" style={{ background: h.accent, opacity: 0.7 }} />
-        <div className="absolute -bottom-1.5 -left-1.5 h-3 w-3 rounded-sm" style={{ background: h.accent, opacity: 0.7 }} />
-        <div className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-sm" style={{ background: h.accent, opacity: 0.7 }} />
-        <CharacterCylinder3D
+      <div className="mb-5 mt-1">
+        <CharacterSpriteViewer
           frames={allFrames}
           angle={cardViewAngle}
           onAngleChange={setCardViewAngle}
           accentColor={h.accent}
-          glowColor={h.glow}
-          width={130}
-          height={162}
+          size="sm"
         />
       </div>
-      <p className="mb-3 text-[9px] font-bold uppercase tracking-widest" style={{ color: `${h.accent}88` }}>
-        ⟳ {ANGLE_LABELS[cardViewAngle]}
-      </p>
 
       <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: `${h.accent}22`, boxShadow: `0 0 16px ${h.accent}22` }}>
         <MaterialIcon name={h.icon} className="text-base" style={{ color: h.accent }} />
@@ -395,72 +384,21 @@ function Inner() {
                   <span className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: hero.accent }}>{hero.title}</span>
                 </div>
 
-                {/* character preview — Seal Online style frame + 3D cylinder */}
+                {/* character preview */}
                 <div className="relative flex flex-col items-center">
-                  {/* ambient glow behind */}
+                  {/* ambient glow */}
                   <div className="absolute inset-0 -m-8 rounded-full blur-3xl pointer-events-none" style={{ background: `radial-gradient(circle, ${hero.glow}, transparent 70%)` }} />
-
-                  {/* Seal Online ornate frame */}
-                  <div
-                    className="relative z-10 p-2"
-                    style={{
-                      background: `linear-gradient(160deg, rgba(10,8,28,0.95) 0%, rgba(18,12,40,0.98) 100%)`,
-                      border: `2px solid ${hero.accent}55`,
-                      borderRadius: 4,
-                      boxShadow: `0 0 0 1px rgba(255,255,255,0.05), 0 0 32px ${hero.glow}, inset 0 0 24px rgba(0,0,0,0.5)`,
-                    }}
-                  >
-                    {/* corner ornaments */}
-                    {["-top-2 -left-2","-top-2 -right-2","-bottom-2 -left-2","-bottom-2 -right-2"].map((pos, i) => (
-                      <div key={i} className={`absolute ${pos} h-4 w-4`} style={{ background: hero.accent, clipPath: "polygon(0 0,100% 0,100% 30%,30% 30%,30% 100%,0 100%)", opacity: 0.85, transform: i >= 2 ? "scaleY(-1)" : undefined, ...(i === 1 || i === 3 ? { transform: `scaleX(-1)${i === 3 ? " scaleY(-1)" : ""}` } : {}) }} />
-                    ))}
-                    {/* top bar */}
-                    <div className="mb-1.5 flex items-center justify-between px-1">
-                      <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, transparent, ${hero.accent}88, transparent)` }} />
-                      <span className="mx-2 text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: hero.accent }}>Character View</span>
-                      <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, transparent, ${hero.accent}88, transparent)` }} />
-                    </div>
-
-                    <CharacterCylinder3D
+                  <div className="relative z-10">
+                    <CharacterSpriteViewer
                       frames={allCharFrames}
                       angle={angle}
                       onAngleChange={(a) => { setAngle(a); triggerPop(); }}
                       accentColor={hero.accent}
-                      glowColor={hero.glow}
-                      width={220}
-                      height={270}
-                      pop={pop}
+                      name={charName}
+                      size="lg"
+                      autoRotate={false}
                     />
-
-                    {/* bottom bar */}
-                    <div className="mt-1.5 flex items-center justify-between px-1">
-                      <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, transparent, ${hero.accent}44, transparent)` }} />
-                      <span className="mx-2 text-[9px] font-bold" style={{ color: `${hero.accent}77` }}>Drag to rotate · Swipe left/right</span>
-                      <div className="h-px flex-1" style={{ background: `linear-gradient(90deg, transparent, ${hero.accent}44, transparent)` }} />
-                    </div>
                   </div>
-                </div>
-
-                {/* name & rotation indicator */}
-                <p className="mt-5 text-2xl font-black text-white">{charName}</p>
-                <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.3em] text-white/30">{ANGLE_LABELS[angle]} View</p>
-
-                {/* rotation dot indicators + arrow buttons */}
-                <div className="mt-3 flex items-center gap-3">
-                  <button type="button" onClick={() => rotate(-1)} className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white/50 transition-colors hover:border-white/[0.15] hover:text-white/70">
-                    <MaterialIcon name="chevron_left" className="text-lg" />
-                  </button>
-                  <div className="flex items-center gap-1.5">
-                    {Array.from({ length: 8 }).map((_, i) => (
-                      <button key={i} type="button" onClick={() => { setAngle(i); triggerPop(); }}
-                        className={`rounded-full transition-all ${i === angle ? "h-2.5 w-5" : "h-1.5 w-1.5 bg-white/15 hover:bg-white/25"}`}
-                        style={i === angle ? { backgroundColor: hero.accent, boxShadow: `0 0 8px ${hero.accent}66` } : undefined}
-                      />
-                    ))}
-                  </div>
-                  <button type="button" onClick={() => rotate(1)} className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] bg-white/[0.04] text-white/50 transition-colors hover:border-white/[0.15] hover:text-white/70">
-                    <MaterialIcon name="chevron_right" className="text-lg" />
-                  </button>
                 </div>
 
                 {/* stat bars under character */}
