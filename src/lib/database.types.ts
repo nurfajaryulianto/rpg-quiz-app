@@ -417,7 +417,15 @@ export type Database = {
           option_label?: string;
           is_correct?: boolean;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "archive_options_question_id_fkey";
+            columns: ["question_id"];
+            isOneToOne: false;
+            referencedRelation: "archive_questions";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       batch_archives: {
         Row: {

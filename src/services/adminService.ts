@@ -896,7 +896,7 @@ export async function getArchiveQuestions(archiveId: string): Promise<ArchiveQue
     .eq("archive_id", archiveId)
     .order("order_index", { ascending: true });
   if (error) throw error;
-  return (data ?? []) as ArchiveQuestionWithOptions[];
+  return (data ?? []) as unknown as ArchiveQuestionWithOptions[];
 }
 
 export async function createArchiveQuestion(
@@ -1049,7 +1049,7 @@ export async function generateBatchQuestionsFromArchives(
       .in("difficulty", diffs);
 
     if (error) throw error;
-    const pool = (rawQuestions ?? []) as ArchiveQuestionWithOptions[];
+    const pool = (rawQuestions ?? []) as unknown as ArchiveQuestionWithOptions[];
     if (pool.length === 0) continue;
 
     // 5. Shuffle and pick
