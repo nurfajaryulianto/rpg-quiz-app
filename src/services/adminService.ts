@@ -266,7 +266,7 @@ export async function createParticipant(participant: {
 
   // Register API always creates with role: "participant". Update role/area if different.
   if ((participant.role && participant.role !== "participant") || participant.area) {
-    const updates: { role?: string; area?: string | null } = {};
+    const updates: { role?: "participant" | "supervisor" | "admin"; area?: string | null } = {};
     if (participant.role && participant.role !== "participant") updates.role = participant.role;
     if (participant.area !== undefined) updates.area = participant.area;
     await supabase.from("participants").update(updates).eq("nik", participant.nik);
