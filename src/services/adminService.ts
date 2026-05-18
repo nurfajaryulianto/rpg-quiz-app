@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
-import type { QuestionWithOptions, Participant, Batch, ExamSession } from "@/lib/database.types";
+import type { QuestionWithOptions, Participant, Batch, ExamSession, QuestionArchive, ArchiveQuestionWithOptions, BatchQuestionSetting } from "@/lib/database.types";
 import type { ParsedQuestion, ParsedParticipant } from "@/utils/excelParser";
+import { shuffleArray } from "@/utils/gamification";
 
 // ============================================
 // BATCHES
@@ -836,5 +837,267 @@ export async function getBatchExportData(batchId: string): Promise<ExportRow[]> 
       accuracyPercent: totalQ > 0 ? Math.round((correct / totalQ) * 100) : 0,
     };
   });
+}
+
+// ============================================
+// QUESTION ARCHIVES (Bank Soal)
+// ============================================
+
+export async function getArchives(): Promise<QuestionArchive[]> {
+  const { data, error } = await supabase
+    .from("question_archives")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createArchive(archive: { name: string; description?: string }) {
+  const { data, error } = await supabase
+    .from("question_archives")
+    .insert(archive)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as QuestionArchive;
+}
+
+export async function updateArchive(id: string, updates: { name?: string; description?: string }) {
+  const { data, error } = await supabase
+    .from("question_archives")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as QuestionArchive;
+}
+
+export async function deleteArchive(id: string) {
+  const { error } = await supabase.from("question_archives").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function getArchiveQuestions(archiveId: string): Promise<ArchiveQuestionWithOptions[]> {
+  const { data, error } = await supabase
+    .from("archive_questions")
+    .select("*, archive_options(*)")
+    .eq("archive_id", archiveId)
+    .order("order_index", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as ArchiveQuestionWithOptions[];
+}
+
+export async function createArchiveQuestion(
+  archiveId: string,
+  question: {
+    question_text: string;
+    question_type: string;
+    category?: string | null;
+    difficulty: string;
+    default_points: number;
+    order_index?: number;
+    options: { option_text: string; option_label: string; is_correct: boolean }[];
+  }
+) {
+  const { data: qData, error: qError } = await supabase
+    .from("archive_questions")
+    .insert({
+      archive_id: archiveId,
+      question_text: question.question_text,
+      question_type: question.question_type,
+      category: question.category ?? null,
+      difficulty: question.difficulty,
+      default_points: question.default_points,
+      order_index: question.order_index ?? 0,
+    })
+    .select()
+    .single();
+  if (qError) throw qError;
+
+  if (question.options.length > 0) {
+    const { error: oError } = await supabase.from("archive_options").insert(
+      question.options.map((o) => ({ question_id: qData.id, ...o }))
+    );
+    if (oError) throw oError;
+  }
+  return qData;
+}
+
+export async function updateArchiveQuestion(
+  questionId: string,
+  updates: {
+    question_text?: string;
+    question_type?: string;
+    category?: string | null;
+    difficulty?: string;
+    default_points?: number;
+    options?: { option_text: string; option_label: string; is_correct: boolean }[];
+  }
+) {
+  const { question_text, question_type, category, difficulty, default_points, options } = updates;
+  const fieldUpdates: Record<string, unknown> = {};
+  if (question_text !== undefined) fieldUpdates.question_text = question_text;
+  if (question_type !== undefined) fieldUpdates.question_type = question_type;
+  if (category !== undefined) fieldUpdates.category = category;
+  if (difficulty !== undefined) fieldUpdates.difficulty = difficulty;
+  if (default_points !== undefined) fieldUpdates.default_points = default_points;
+
+  if (Object.keys(fieldUpdates).length > 0) {
+    const { error } = await supabase.from("archive_questions").update(fieldUpdates).eq("id", questionId);
+    if (error) throw error;
+  }
+
+  if (options) {
+    await supabase.from("archive_options").delete().eq("question_id", questionId);
+    const { error } = await supabase.from("archive_options").insert(
+      options.map((o) => ({ question_id: questionId, ...o }))
+    );
+    if (error) throw error;
+  }
+}
+
+export async function deleteArchiveQuestion(questionId: string) {
+  const { error } = await supabase.from("archive_questions").delete().eq("id", questionId);
+  if (error) throw error;
+}
+
+// ---- Batch ↔ Archive linking ----
+
+export async function getBatchArchiveIds(batchId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("batch_archives")
+    .select("archive_id")
+    .eq("batch_id", batchId);
+  if (error) throw error;
+  return (data ?? []).map((r: { archive_id: string }) => r.archive_id);
+}
+
+export async function setBatchArchives(batchId: string, archiveIds: string[]) {
+  // Replace all links for this batch
+  await supabase.from("batch_archives").delete().eq("batch_id", batchId);
+  if (archiveIds.length === 0) return;
+  const { error } = await supabase.from("batch_archives").insert(
+    archiveIds.map((aid) => ({ batch_id: batchId, archive_id: aid }))
+  );
+  if (error) throw error;
+}
+
+// ---- Batch question settings ----
+
+export async function getBatchQuestionSettings(batchId: string): Promise<BatchQuestionSetting[]> {
+  const { data, error } = await supabase
+    .from("batch_question_settings")
+    .select("*")
+    .eq("batch_id", batchId);
+  if (error) throw error;
+  return (data ?? []) as BatchQuestionSetting[];
+}
+
+export async function setBatchQuestionSettings(
+  batchId: string,
+  settings: { question_type: string; count: number; points_per_question: number; include_difficulties: string[] }[]
+) {
+  await supabase.from("batch_question_settings").delete().eq("batch_id", batchId);
+  const rows = settings
+    .filter((s) => s.count > 0 || s.points_per_question > 0)
+    .map((s) => ({ batch_id: batchId, ...s }));
+  if (rows.length === 0) return;
+  const { error } = await supabase.from("batch_question_settings").insert(rows);
+  if (error) throw error;
+}
+
+// ---- Generate questions from archives ----
+
+export async function generateBatchQuestionsFromArchives(
+  batchId: string
+): Promise<{ total: number; totalScore: number }> {
+  // 1. Fetch linked archive IDs
+  const archiveIds = await getBatchArchiveIds(batchId);
+  if (archiveIds.length === 0) throw new Error("Tidak ada bank soal yang dipilih untuk batch ini.");
+
+  // 2. Fetch settings for each question type
+  const settings = await getBatchQuestionSettings(batchId);
+  const activeSettings = settings.filter((s) => s.count > 0);
+  if (activeSettings.length === 0) throw new Error("Belum ada konfigurasi jumlah soal. Atur 'Pengaturan Soal' terlebih dahulu.");
+
+  // 3. Delete existing questions for this batch (fresh generation)
+  await deleteQuestionsByBatch(batchId);
+
+  let orderIndex = 0;
+  let totalScore = 0;
+
+  for (const setting of activeSettings) {
+    // 4. Fetch questions from archives filtered by type + difficulties
+    const diffs = (setting.include_difficulties ?? ["easy", "medium", "hard", "very_hard"]).filter(Boolean);
+    const { data: rawQuestions, error } = await supabase
+      .from("archive_questions")
+      .select("*, archive_options(*)")
+      .in("archive_id", archiveIds)
+      .eq("question_type", setting.question_type)
+      .in("difficulty", diffs);
+
+    if (error) throw error;
+    const pool = (rawQuestions ?? []) as ArchiveQuestionWithOptions[];
+    if (pool.length === 0) continue;
+
+    // 5. Shuffle and pick
+    const shuffled = shuffleArray([...pool]);
+    const selected = shuffled.slice(0, setting.count);
+
+    for (const aq of selected) {
+      // 6. Insert into questions table linked to this batch
+      const { data: newQ, error: qErr } = await supabase
+        .from("questions")
+        .insert({
+          batch_id: batchId,
+          question_text: aq.question_text,
+          question_type: aq.question_type,
+          category: aq.category ?? null,
+          difficulty: aq.difficulty === "very_hard" ? "hard" : aq.difficulty,
+          points: setting.points_per_question,
+          order_index: orderIndex++,
+        })
+        .select()
+        .single();
+      if (qErr) throw qErr;
+
+      // 7. Insert options
+      if (aq.archive_options && aq.archive_options.length > 0) {
+        const { error: oErr } = await supabase.from("options").insert(
+          aq.archive_options.map((o) => ({
+            question_id: newQ.id,
+            option_text: o.option_text,
+            option_label: o.option_label,
+            is_correct: o.is_correct,
+          }))
+        );
+        if (oErr) throw oErr;
+      }
+      totalScore += setting.points_per_question;
+    }
+  }
+
+  return { total: orderIndex, totalScore };
+}
+
+// Count available questions per type from selected archives (for UI feedback)
+export async function countArchiveQuestionsByType(
+  archiveIds: string[],
+  difficulties: string[]
+): Promise<Record<string, number>> {
+  if (archiveIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from("archive_questions")
+    .select("question_type")
+    .in("archive_id", archiveIds)
+    .in("difficulty", difficulties);
+  if (error) throw error;
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const t = (row as { question_type: string }).question_type;
+    counts[t] = (counts[t] ?? 0) + 1;
+  }
+  return counts;
 }
 

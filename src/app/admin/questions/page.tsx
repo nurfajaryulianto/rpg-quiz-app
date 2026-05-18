@@ -19,7 +19,7 @@ import type { Batch, QuestionWithOptions } from "@/lib/database.types";
 
 interface QuestionForm {
   question_text: string;
-  question_type: "multiple_choice" | "true_false";
+  question_type: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
   category: string;
   difficulty: "easy" | "medium" | "hard";
   points: number;
@@ -27,7 +27,21 @@ interface QuestionForm {
   option_b: string;
   option_c: string;
   option_d: string;
+  option_e: string;
+  option_f: string;
+  option_g: string;
+  option_h: string;
+  // For MCQ/binary/true_false: which single option is correct
   correct_answer: "A" | "B" | "C" | "D";
+  // For checkbox: individual correct flags
+  correct_a: boolean;
+  correct_b: boolean;
+  correct_c: boolean;
+  correct_d: boolean;
+  correct_e: boolean;
+  correct_f: boolean;
+  correct_g: boolean;
+  correct_h: boolean;
 }
 
 const DIFFICULTY_LABELS: Record<string, { label: string; color: string }> = {
@@ -57,6 +71,14 @@ export default function QuestionsPage() {
 
   const questionType = useWatch({ control, name: "question_type" });
   const isTrueFalse = questionType === "true_false";
+  const isBinary = questionType === "binary";
+  const isCheckbox = questionType === "checkbox";
+  const isEssay = questionType === "essay";
+  const isSingleChoice = questionType === "multiple_choice" || isTrueFalse || isBinary;
+
+  const selectedBatch = batches.find((b) => b.id === selectedBatchId);
+  const checkboxOptionsCount = selectedBatch?.checkbox_options_count ?? 3;
+  const OPTION_LABELS = ["A", "B", "C", "D", "E", "F", "G", "H"] as const;
 
   const loadBatches = useCallback(async () => {
     try {
@@ -123,18 +145,35 @@ export default function QuestionsPage() {
     if (!selectedBatchId) return;
     setSaving(true);
     try {
-      const tf = data.question_type === "true_false";
-      const options = tf
-        ? [
-            { option_text: "Benar", option_label: "A" as const, is_correct: data.correct_answer === "A" },
-            { option_text: "Salah", option_label: "B" as const, is_correct: data.correct_answer === "B" },
-          ]
-        : [
-            { option_text: data.option_a, option_label: "A" as const, is_correct: data.correct_answer === "A" },
-            { option_text: data.option_b, option_label: "B" as const, is_correct: data.correct_answer === "B" },
-            { option_text: data.option_c, option_label: "C" as const, is_correct: data.correct_answer === "C" },
-            { option_text: data.option_d, option_label: "D" as const, is_correct: data.correct_answer === "D" },
-          ];
+      let options: { option_text: string; option_label: string; is_correct: boolean }[] = [];
+
+      if (data.question_type === "true_false") {
+        options = [
+          { option_text: "Benar", option_label: "A", is_correct: data.correct_answer === "A" },
+          { option_text: "Salah", option_label: "B", is_correct: data.correct_answer === "B" },
+        ];
+      } else if (data.question_type === "binary") {
+        options = [
+          { option_text: "Ya", option_label: "A", is_correct: data.correct_answer === "A" },
+          { option_text: "Tidak", option_label: "B", is_correct: data.correct_answer === "B" },
+        ];
+      } else if (data.question_type === "checkbox") {
+        options = OPTION_LABELS.slice(0, checkboxOptionsCount).map((label) => ({
+          option_text: (data[`option_${label.toLowerCase()}` as keyof QuestionForm] as string) ?? "",
+          option_label: label,
+          is_correct: (data[`correct_${label.toLowerCase()}` as keyof QuestionForm] as boolean) ?? false,
+        }));
+      } else if (data.question_type === "essay") {
+        options = [];
+      } else {
+        // multiple_choice
+        options = [
+          { option_text: data.option_a, option_label: "A", is_correct: data.correct_answer === "A" },
+          { option_text: data.option_b, option_label: "B", is_correct: data.correct_answer === "B" },
+          { option_text: data.option_c, option_label: "C", is_correct: data.correct_answer === "C" },
+          { option_text: data.option_d, option_label: "D", is_correct: data.correct_answer === "D" },
+        ];
+      }
 
       const shared = {
         question_text: data.question_text,
@@ -164,21 +203,31 @@ export default function QuestionsPage() {
 
   const handleEditQuestion = (q: QuestionWithOptions) => {
     setEditingQuestion(q);
-    const optA = q.options.find((o) => o.option_label === "A");
-    const optB = q.options.find((o) => o.option_label === "B");
-    const optC = q.options.find((o) => o.option_label === "C");
-    const optD = q.options.find((o) => o.option_label === "D");
-    const correct = q.options.find((o) => o.is_correct);
     setValue("question_text", q.question_text);
-    setValue("question_type", q.question_type);
+    setValue("question_type", q.question_type as QuestionForm["question_type"]);
     setValue("category", q.category ?? "");
-    setValue("difficulty", q.difficulty);
+    setValue("difficulty", q.difficulty as QuestionForm["difficulty"]);
     setValue("points", q.points);
-    setValue("option_a", optA?.option_text ?? "");
-    setValue("option_b", optB?.option_text ?? "");
-    setValue("option_c", optC?.option_text ?? "");
-    setValue("option_d", optD?.option_text ?? "");
-    setValue("correct_answer", (correct?.option_label ?? "A") as "A" | "B" | "C" | "D");
+
+    if (q.question_type === "checkbox") {
+      q.options.forEach((opt) => {
+        const key = opt.option_label.toLowerCase();
+        setValue(`option_${key}` as keyof QuestionForm, opt.option_text as never);
+        setValue(`correct_${key}` as keyof QuestionForm, opt.is_correct as never);
+      });
+    } else if (q.question_type !== "essay") {
+      const optA = q.options.find((o) => o.option_label === "A");
+      const optB = q.options.find((o) => o.option_label === "B");
+      const optC = q.options.find((o) => o.option_label === "C");
+      const optD = q.options.find((o) => o.option_label === "D");
+      const correct = q.options.find((o) => o.is_correct);
+      setValue("option_a", optA?.option_text ?? "");
+      setValue("option_b", optB?.option_text ?? "");
+      setValue("option_c", optC?.option_text ?? "");
+      setValue("option_d", optD?.option_text ?? "");
+      setValue("correct_answer", (correct?.option_label ?? "A") as "A" | "B" | "C" | "D");
+    }
+
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -313,8 +362,11 @@ export default function QuestionsPage() {
                     <div>
                       <label className="block text-on-surface-variant text-xs font-medium mb-1">Type</label>
                       <select {...register("question_type")} className={inputClasses}>
-                        <option value="multiple_choice">Multiple Choice</option>
-                        <option value="true_false">True / False</option>
+                        <option value="multiple_choice">Pilihan Ganda</option>
+                        <option value="true_false">Benar/Salah</option>
+                        <option value="binary">Ya/Tidak</option>
+                        <option value="checkbox">Checkbox</option>
+                        <option value="essay">Essay</option>
                       </select>
                     </div>
                     <div>
@@ -355,34 +407,66 @@ export default function QuestionsPage() {
                   </div>
 
                   {/* Options — conditional on question_type */}
-                  {isTrueFalse ? (
+                  {isEssay ? (
+                    <p className="text-on-surface-variant text-sm italic bg-surface-container-low p-3 rounded-lg">
+                      Soal essay tidak memiliki pilihan jawaban. Penilaian dilakukan secara manual oleh supervisor.
+                    </p>
+                  ) : (isTrueFalse || isBinary) ? (
                     <div>
-                      <label className="block text-on-surface-variant text-sm font-medium mb-2">Correct Answer</label>
+                      <label className="block text-on-surface-variant text-sm font-medium mb-2">Jawaban Benar</label>
                       <div className="flex gap-3">
                         {(["A", "B"] as const).map((val) => (
                           <label key={val} className="flex items-center gap-2 px-4 py-3 rounded-xl border-2 border-outline-variant/30 cursor-pointer">
                             <input
                               type="radio"
                               value={val}
-                              {...register("correct_answer", { required: "Select correct answer" })}
+                              {...register("correct_answer", { required: "Pilih jawaban benar" })}
                               className="accent-primary"
                             />
-                            <span className="font-bold text-sm">{val === "A" ? "✓ Benar (True)" : "✗ Salah (False)"}</span>
+                            <span className="font-bold text-sm">
+                              {isBinary
+                                ? (val === "A" ? "✓ Ya" : "✗ Tidak")
+                                : (val === "A" ? "✓ Benar (True)" : "✗ Salah (False)")
+                              }
+                            </span>
                           </label>
                         ))}
                       </div>
                       {errors.correct_answer && <p className="text-error text-xs mt-1">{errors.correct_answer.message}</p>}
+                    </div>
+                  ) : isCheckbox ? (
+                    <div>
+                      <label className="block text-on-surface-variant text-sm font-medium mb-2">
+                        Pilihan & Jawaban Benar ({checkboxOptionsCount} opsi — centang semua yang benar)
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {OPTION_LABELS.slice(0, checkboxOptionsCount).map((label) => (
+                          <div key={label} className="flex items-center gap-3 p-3 bg-surface-container-low rounded-lg border border-outline-variant/20">
+                            <input
+                              type="checkbox"
+                              {...register(`correct_${label.toLowerCase()}` as keyof QuestionForm)}
+                              className="w-4 h-4 accent-primary flex-shrink-0"
+                            />
+                            <input
+                              {...register(`option_${label.toLowerCase()}` as keyof QuestionForm, { required: "Required" })}
+                              className="flex-1 bg-transparent border-b border-outline-variant/40 py-1 text-sm text-on-surface focus:outline-none focus:border-primary"
+                              placeholder={`Opsi ${label}`}
+                            />
+                            <span className="text-xs font-bold text-on-surface-variant w-5 text-center">{label}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {(["A", "B", "C", "D"] as const).map((label) => (
                           <div key={label}>
-                            <label className="block text-on-surface-variant text-sm font-medium mb-1">Option {label}</label>
+                            <label className="block text-on-surface-variant text-sm font-medium mb-1">Opsi {label}</label>
                             <input
                               {...register((`option_${label.toLowerCase()}`) as keyof QuestionForm, { required: "Required" })}
                               className={inputClasses}
-                              placeholder={`Option ${label}`}
+                              placeholder={`Opsi ${label}`}
                             />
                           </div>
                         ))}
@@ -390,7 +474,7 @@ export default function QuestionsPage() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-on-surface-variant text-sm font-medium mb-1">Correct Answer</label>
+                          <label className="block text-on-surface-variant text-sm font-medium mb-1">Jawaban Benar</label>
                           <select
                             {...register("correct_answer", { required: "Required" })}
                             className={inputClasses}

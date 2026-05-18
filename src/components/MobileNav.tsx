@@ -9,15 +9,25 @@ export default function MobileNav() {
   const pathname = usePathname();
   const { participant } = useAuthStore();
 
+  const role = participant?.role ?? "participant";
+  const isAdmin = role === "admin";
+  const isSupervisor = role === "supervisor";
+
   const navItems = [
     { href: "/",          id: "home",        icon: "home",         label: "Home" },
-    { href: "/quests",    id: "quests",       icon: "foundation",   label: "Quests" },
-    ...(participant?.role === "admin"
+    ...(!isAdmin && !isSupervisor ? [
+      { href: "/quests",    id: "quests",     icon: "foundation",   label: "Quests" },
+    ] : []),
+    ...(isAdmin
       ? [{ href: "/admin", id: "admin", icon: "shield_person", label: "Admin", special: true }]
+      : isSupervisor
+      ? [{ href: "/supervisor", id: "supervisor", icon: "grading", label: "Grade", special: true }]
       : []),
     { href: "/leaderboard", id: "leaderboard", icon: "leaderboard", label: "Rank" },
-    { href: "/inventory", id: "inventory",    icon: "backpack",     label: "Items" },
-    { href: "/character", id: "character",    icon: "person",       label: "Profile" },
+    ...(!isAdmin && !isSupervisor ? [
+      { href: "/inventory", id: "inventory",  icon: "backpack",     label: "Items" },
+      { href: "/character", id: "character",  icon: "person",       label: "Profile" },
+    ] : []),
   ];
 
   const isActive = (href: string) => {

@@ -47,8 +47,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, isInitialized: true });
     }
 
-    // Listen for auth state changes
+    // Listen for auth state changes.
+    // Skip INITIAL_SESSION — already handled by getSession() above.
     supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "INITIAL_SESSION") return;
       if (event === "SIGNED_OUT") {
         set({ user: null, participant: null });
         return;

@@ -38,6 +38,7 @@ export async function getBatchLeaderboard(batchId: string) {
       )
     `)
     .eq("batch_id", batchId)
+    .eq("is_leaderboard_eligible", true)
     .in("status", ["completed", "timed_out"])
     .order("score", { ascending: false });
 

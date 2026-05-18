@@ -26,7 +26,7 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
     if (pathname === "/create-character") {
       router.push("/");
     }
-  }, [user, participant, isInitialized, router, pathname]);
+  }, [user, isInitialized, router, pathname]);
 
   if (!isInitialized) {
     return (
@@ -60,15 +60,6 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
             Back to Login
           </button>
         </div>
-      </div>
-    );
-  }
-
-  // Redirect to character creation if no avatar configured
-  if (!participant.avatar_config) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-surface">
-        <LoadingSpinner text="Redirecting to character creation..." />
       </div>
     );
   }

@@ -6,13 +6,15 @@ import { useAuthStore } from "@/store/authStore";
 import { getXPProgress, getLevelTitle } from "@/utils/gamification";
 
 const navItems = [
-  { href: "/",          id: "home",        label: "Home",        icon: "home" },
-  { href: "/quests",    id: "quests",      label: "Quests",      icon: "foundation" },
-  { href: "/leaderboard", id: "leaderboard", label: "Leaderboard", icon: "leaderboard" },
-  { href: "/inventory", id: "inventory",   label: "Inventory",   icon: "backpack" },
-  { href: "/character", id: "character",   label: "Character",   icon: "person" },
-  { href: "/admin",     id: "admin",       label: "Admin",       icon: "shield_person", fill: true, adminOnly: true },
-  { href: "/admin/analytics", id: "analytics", label: "Analytics", icon: "insights", fill: true, adminOnly: true },
+  { href: "/",          id: "home",        label: "Home",        icon: "home",           roles: ["participant", "supervisor", "admin"] },
+  { href: "/quests",    id: "quests",      label: "Quests",      icon: "foundation",      roles: ["participant"] },
+  { href: "/leaderboard", id: "leaderboard", label: "Leaderboard", icon: "leaderboard",  roles: ["participant", "supervisor", "admin"] },
+  { href: "/inventory", id: "inventory",   label: "Inventory",   icon: "backpack",        roles: ["participant"] },
+  { href: "/character", id: "character",   label: "Character",   icon: "person",          roles: ["participant"] },
+  { href: "/supervisor", id: "supervisor", label: "Grade Essay",  icon: "grading", fill: true, roles: ["supervisor", "admin"] },
+  { href: "/admin",     id: "admin",       label: "Admin",       icon: "shield_person", fill: true, roles: ["admin"] },
+  { href: "/admin/question-archives", id: "archives", label: "Bank Soal", icon: "library_books", fill: true, roles: ["admin"] },
+  { href: "/admin/analytics", id: "analytics", label: "Analytics", icon: "insights", fill: true, roles: ["admin"] },
 ];
 
 export default function Sidebar() {
@@ -47,7 +49,7 @@ export default function Sidebar() {
 
       <nav className="flex-1 space-y-1">
         {navItems
-          .filter((item) => !item.adminOnly || participant?.role === "admin")
+          .filter((item) => item.roles.includes(participant?.role ?? "participant"))
           .map((item) => (
             <button
               key={item.id}

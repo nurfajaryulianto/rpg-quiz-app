@@ -2,84 +2,160 @@ import { create } from "zustand";
 import type { QuestionWithOptions } from "@/lib/database.types";
 
 interface ExamState {
+  // Questions & navigation
   questions: QuestionWithOptions[];
   currentIndex: number;
-  answers: Map<string, string>; // questionId -> selectedOptionId
+
+  // Single-choice answers (MCQ / true_false / binary): questionId → optionId
+  answers: Map<string, string>;
+  // Checkbox selections (before submission): questionId → Set<optionId>
+  checkboxSelections: Map<string, Set<string>>;
+  // Essay draft texts: questionId → text
+  essayTexts: Map<string, string>;
+  // Questions that have been definitively submitted
+  submittedQuestions: Set<string>;
+
+  // Scoring
   score: number;
   xpEarned: number;
   streak: number;
   maxStreak: number;
-  timeRemaining: number;
-  totalTime: number;
+
+  // Global exam timer (does NOT reset on question navigation)
+  examTimeRemaining: number; // seconds
+  examTotalTime: number; // initial seconds (for progress bar)
+
+  // Status
   isFinished: boolean;
   isSubmitting: boolean;
-  /** epoch ms when each question was first displayed */
+
+  // Per-question start times (epoch ms) for time_taken_seconds tracking
   questionStartTimes: Map<string, number>;
 
-  // Actions
-  setQuestions: (questions: QuestionWithOptions[], timePerQuestion: number) => void;
+  // Actions — setup
+  setQuestions: (questions: QuestionWithOptions[], totalTimeSeconds: number) => void;
+
+  // Actions — single-choice (MCQ / true_false / binary)
   selectAnswer: (questionId: string, optionId: string) => void;
+
+  // Actions — checkbox
+  toggleCheckboxOption: (questionId: string, optionId: string) => void;
+  submitCheckboxQuestion: (questionId: string) => void;
+
+  // Actions — essay
+  setEssayText: (questionId: string, text: string) => void;
+  submitEssayQuestion: (questionId: string) => void;
+
+  // Actions — navigation
   goToNext: () => void;
   goToPrevious: () => void;
   goToQuestion: (index: number) => void;
+
+  // Actions — scoring
   addScore: (points: number) => void;
   addXP: (xp: number) => void;
   incrementStreak: () => void;
   resetStreak: () => void;
-  setTimeRemaining: (time: number) => void;
+
+  // Actions — timer
+  setExamTimeRemaining: (time: number) => void;
+
+  // Actions — state
   setFinished: (finished: boolean) => void;
   setSubmitting: (submitting: boolean) => void;
-  /** Record the start time for a question (call when question first renders). */
   markQuestionStart: (questionId: string) => void;
-  /** Returns seconds elapsed since the question was started (capped at totalTime). */
+  /** Returns seconds elapsed since question was first opened (capped at examTotalTime). */
   getTimeTaken: (questionId: string) => number;
+  /** Returns true if the question has been submitted/answered. */
+  isQuestionAnswered: (questionId: string) => boolean;
+  /** Count of submitted questions. */
+  getAnsweredCount: () => number;
   reset: () => void;
 }
 
-const initialState = {
-  questions: [] as QuestionWithOptions[],
-  currentIndex: 0,
+const freshMaps = () => ({
   answers: new Map<string, string>(),
+  checkboxSelections: new Map<string, Set<string>>(),
+  essayTexts: new Map<string, string>(),
+  submittedQuestions: new Set<string>(),
+  questionStartTimes: new Map<string, number>(),
+});
+
+export const useExamStore = create<ExamState>((set, get) => ({
+  questions: [],
+  currentIndex: 0,
+  ...freshMaps(),
   score: 0,
   xpEarned: 0,
   streak: 0,
   maxStreak: 0,
-  timeRemaining: 0,
-  totalTime: 0,
+  examTimeRemaining: 0,
+  examTotalTime: 0,
   isFinished: false,
   isSubmitting: false,
-  questionStartTimes: new Map<string, number>(),
-};
 
-export const useExamStore = create<ExamState>((set, get) => ({
-  ...initialState,
-
-  setQuestions: (questions, timePerQuestion) =>
+  setQuestions: (questions, totalTimeSeconds) =>
     set({
       questions,
       currentIndex: 0,
-      totalTime: timePerQuestion,
-      timeRemaining: timePerQuestion,
-      answers: new Map(),
+      ...freshMaps(),
       score: 0,
       xpEarned: 0,
       streak: 0,
       maxStreak: 0,
+      examTimeRemaining: totalTimeSeconds,
+      examTotalTime: totalTimeSeconds,
       isFinished: false,
-      questionStartTimes: new Map(),
+      isSubmitting: false,
     }),
 
+  // Single-choice: record answer and mark as submitted immediately
   selectAnswer: (questionId, optionId) =>
     set((state) => {
       const newAnswers = new Map(state.answers);
       newAnswers.set(questionId, optionId);
-      return { answers: newAnswers };
+      const newSubmitted = new Set(state.submittedQuestions);
+      newSubmitted.add(questionId);
+      return { answers: newAnswers, submittedQuestions: newSubmitted };
+    }),
+
+  toggleCheckboxOption: (questionId, optionId) =>
+    set((state) => {
+      const newSelections = new Map(state.checkboxSelections);
+      const current = new Set(newSelections.get(questionId) ?? []);
+      if (current.has(optionId)) {
+        current.delete(optionId);
+      } else {
+        current.add(optionId);
+      }
+      newSelections.set(questionId, current);
+      return { checkboxSelections: newSelections };
+    }),
+
+  submitCheckboxQuestion: (questionId) =>
+    set((state) => {
+      const newSubmitted = new Set(state.submittedQuestions);
+      newSubmitted.add(questionId);
+      return { submittedQuestions: newSubmitted };
+    }),
+
+  setEssayText: (questionId, text) =>
+    set((state) => {
+      const newTexts = new Map(state.essayTexts);
+      newTexts.set(questionId, text);
+      return { essayTexts: newTexts };
+    }),
+
+  submitEssayQuestion: (questionId) =>
+    set((state) => {
+      const newSubmitted = new Set(state.submittedQuestions);
+      newSubmitted.add(questionId);
+      return { submittedQuestions: newSubmitted };
     }),
 
   goToNext: () =>
     set((state) => ({
       currentIndex: Math.min(state.currentIndex + 1, state.questions.length - 1),
-      timeRemaining: state.totalTime,
     })),
 
   goToPrevious: () =>
@@ -101,15 +177,12 @@ export const useExamStore = create<ExamState>((set, get) => ({
   incrementStreak: () =>
     set((state) => {
       const newStreak = state.streak + 1;
-      return {
-        streak: newStreak,
-        maxStreak: Math.max(state.maxStreak, newStreak),
-      };
+      return { streak: newStreak, maxStreak: Math.max(state.maxStreak, newStreak) };
     }),
 
   resetStreak: () => set({ streak: 0 }),
 
-  setTimeRemaining: (time) => set({ timeRemaining: time }),
+  setExamTimeRemaining: (time) => set({ examTimeRemaining: time }),
 
   setFinished: (finished) => set({ isFinished: finished }),
 
@@ -117,7 +190,6 @@ export const useExamStore = create<ExamState>((set, get) => ({
 
   markQuestionStart: (questionId) =>
     set((state) => {
-      // Only record first time (don't overwrite if revisited)
       if (state.questionStartTimes.has(questionId)) return {};
       const next = new Map(state.questionStartTimes);
       next.set(questionId, Date.now());
@@ -127,15 +199,30 @@ export const useExamStore = create<ExamState>((set, get) => ({
   getTimeTaken: (questionId) => {
     const state = get();
     const startMs = state.questionStartTimes.get(questionId);
-    if (!startMs) return state.totalTime;
-    const elapsedSec = Math.round((Date.now() - startMs) / 1000);
-    return Math.min(elapsedSec, state.totalTime);
+    if (!startMs) return state.examTotalTime;
+    const elapsed = Math.round((Date.now() - startMs) / 1000);
+    return Math.min(elapsed, state.examTotalTime);
   },
+
+  isQuestionAnswered: (questionId) => {
+    return get().submittedQuestions.has(questionId);
+  },
+
+  getAnsweredCount: () => get().submittedQuestions.size,
 
   reset: () =>
     set({
-      ...initialState,
-      answers: new Map(),
-      questionStartTimes: new Map(),
+      questions: [],
+      currentIndex: 0,
+      ...freshMaps(),
+      score: 0,
+      xpEarned: 0,
+      streak: 0,
+      maxStreak: 0,
+      examTimeRemaining: 0,
+      examTotalTime: 0,
+      isFinished: false,
+      isSubmitting: false,
     }),
 }));
+

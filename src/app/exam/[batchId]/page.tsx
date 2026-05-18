@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -8,549 +8,700 @@ import { useExamStore } from "@/store/examStore";
 import AuthProvider from "@/components/AuthProvider";
 import MaterialIcon from "@/components/MaterialIcon";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
-import Timer from "@/components/ui/Timer";
 import {
   fetchExamQuestions,
   startExamSession,
   submitAnswer,
   finishExam,
-  getExamSession,
   assertBatchAccessible,
 } from "@/services/examService";
-import { getXPProgress, getLevelTitle } from "@/utils/gamification";
 import { supabase } from "@/lib/supabase";
+import type { Batch, QuestionWithOptions } from "@/lib/database.types";
+
+type FeedbackType = "correct" | "wrong" | "partial" | "submitted";
 
 function ExamPage() {
   const params = useParams();
   const router = useRouter();
   const batchId = params.batchId as string;
   const { participant } = useAuthStore();
-
-  // Subscribe to reactive store values for rendering
   const store = useExamStore();
+
   const {
     questions,
     currentIndex,
     answers,
-    score,
-    xpEarned,
-    streak,
-    timeRemaining,
-    totalTime,
-    isFinished,
+    checkboxSelections,
+    essayTexts,
+    submittedQuestions,
+    examTimeRemaining,
+    examTotalTime,
     isSubmitting,
   } = store;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [feedbackState, setFeedbackState] = useState<"correct" | "wrong" | null>(null);
+  const [batch, setBatch] = useState<Batch | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [feedbackMap, setFeedbackMap] = useState<Map<string, FeedbackType>>(new Map());
   const [showResults, setShowResults] = useState(false);
-  const submittedRef = useRef(new Set<string>());
-  const finishingRef = useRef(false);
+  const [showConfirmFinish, setShowConfirmFinish] = useState(false);
+  const [submittingQuestion, setSubmittingQuestion] = useState<string | null>(null);
 
-  // Load quiz
+  const finishingRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const storeRef = useRef(store);
+  storeRef.current = store;
+
+  // ─── Load exam ────────────────────────────────────────────
   useEffect(() => {
     if (!participant || !batchId) return;
-
     let cancelled = false;
 
     async function load() {
       try {
-        // Check for a completed/timed-out session before fetching batch
-        const existingSession = await getExamSession(participant!.id, batchId);
-        if (existingSession && existingSession.status !== "in_progress") {
-          if (!cancelled) setError("You have already completed this quest!");
+        const { data: batchData, error: batchErr } = await supabase
+          .from("batches").select("*").eq("id", batchId).single();
+        if (batchErr || !batchData) throw new Error("Exam not found.");
+        const b = batchData as Batch;
+        assertBatchAccessible(b);
+        setBatch(b);
+
+        const session = await startExamSession(participant!.id, batchId, b);
+        if (cancelled) return;
+        setSessionId(session.id);
+
+        if (session.status === "completed" || session.status === "timed_out") {
+          setShowResults(true);
+          setLoading(false);
           return;
         }
 
-        const batchResult = await supabase
-          .from("batches")
-          .select("*")
-          .eq("id", batchId)
-          .single();
+        const qs = await fetchExamQuestions(batchId, session.question_order);
+        if (cancelled) return;
+        storeRef.current.setQuestions(qs, b.time_limit_seconds);
 
-        const batchData = batchResult.data as
-          | import("@/lib/database.types").Batch
-          | null;
+        // Restore already-answered questions (resume support)
+        const { data: existingAnswers } = await supabase
+          .from("answers")
+          .select("question_id, selected_option_id, selected_option_ids, essay_text")
+          .eq("participant_id", participant!.id)
+          .eq("batch_id", batchId);
 
-        if (!batchData) {
-          if (!cancelled) setError("Quest not found");
-          return;
+        if (existingAnswers && existingAnswers.length > 0) {
+          const newFeedback = new Map<string, FeedbackType>();
+          (existingAnswers as Array<{
+            question_id: string;
+            selected_option_id: string | null;
+            selected_option_ids: string[] | null;
+            essay_text: string | null;
+          }>).forEach((a) => {
+            if (a.selected_option_id) {
+              storeRef.current.selectAnswer(a.question_id, a.selected_option_id);
+            } else if (a.essay_text !== null) {
+              storeRef.current.setEssayText(a.question_id, a.essay_text ?? "");
+              storeRef.current.submitEssayQuestion(a.question_id);
+              newFeedback.set(a.question_id, "submitted");
+            } else if ((a.selected_option_ids ?? []).length > 0) {
+              storeRef.current.submitCheckboxQuestion(a.question_id);
+              newFeedback.set(a.question_id, "submitted");
+            }
+          });
+          setFeedbackMap(newFeedback);
         }
 
-        // Enforce timing window (throws with user-friendly message)
-        assertBatchAccessible(batchData);
-
-        // Start or resume session — passes batch for randomisation logic
-        const session = await startExamSession(participant!.id, batchId, batchData);
-
-        // Fetch questions respecting per-participant question order
-        const q = await fetchExamQuestions(batchId, session.question_order ?? null);
-
+        setLoading(false);
+      } catch (err: unknown) {
         if (!cancelled) {
-          useExamStore.getState().setQuestions(q, batchData.time_limit_seconds);
-          // Mark the first question's start time
-          if (q.length > 0) {
-            useExamStore.getState().markQuestionStart(q[0].id);
-          }
+          setError((err as Error).message ?? "Failed to load exam");
+          setLoading(false);
         }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load quest");
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     }
 
     load();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [participant, batchId]);
 
-    return () => {
-      cancelled = true;
-      useExamStore.getState().reset();
-      submittedRef.current.clear();
-      finishingRef.current = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [participant?.id, batchId]);
-
-  // Mark question start time whenever the current question changes
+  // ─── Global countdown timer ───────────────────────────────
   useEffect(() => {
-    const q = useExamStore.getState().questions[currentIndex];
-    if (q) useExamStore.getState().markQuestionStart(q.id);
-  }, [currentIndex]);
-
-  // Finish exam
-  const doFinish = useCallback(
-    async (status: "completed" | "timed_out") => {
-      if (finishingRef.current || !participant) return;
-      finishingRef.current = true;
-      useExamStore.getState().setFinished(true);
-
-      try {
-        const s = useExamStore.getState();
-        await finishExam({
-          participantId: participant.id,
-          batchId,
-          totalScore: s.score,
-          totalXP: s.xpEarned,
-          maxStreak: s.maxStreak,
-          status,
-        });
-      } catch {
-        // Show results even if DB update fails
+    if (loading || showResults) return;
+    timerRef.current = setInterval(() => {
+      const cur = storeRef.current.examTimeRemaining;
+      if (cur <= 1) {
+        clearInterval(timerRef.current!);
+        handleFinish("timed_out");
+      } else {
+        storeRef.current.setExamTimeRemaining(cur - 1);
       }
+    }, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, showResults]);
 
+  // ─── Finish exam ──────────────────────────────────────────
+  const handleFinish = useCallback(async (status: "completed" | "timed_out") => {
+    if (finishingRef.current || !sessionId || !participant) return;
+    finishingRef.current = true;
+    if (timerRef.current) clearInterval(timerRef.current);
+    storeRef.current.setSubmitting(true);
+    try {
+      const s = storeRef.current;
+      await finishExam({
+        sessionId,
+        participantId: participant.id,
+        totalScore: s.score,
+        totalXP: s.xpEarned,
+        maxStreak: s.maxStreak,
+        status,
+      });
+      storeRef.current.setFinished(true);
+      setShowConfirmFinish(false);
       setShowResults(true);
-    },
-    [participant, batchId]
-  );
-
-  // Handle answer selection
-  const handleSelectAnswer = useCallback(
-    async (optionId: string) => {
-      const s = useExamStore.getState();
-      if (s.isFinished || s.isSubmitting || feedbackState) return;
-
-      const question = s.questions[s.currentIndex];
-      if (!question || !participant) return;
-
-      if (submittedRef.current.has(question.id)) return;
-      submittedRef.current.add(question.id);
-
-      s.selectAnswer(question.id, optionId);
-      s.setSubmitting(true);
-
-      const selectedOption = question.options.find((o) => o.id === optionId);
-      const isCorrect = selectedOption?.is_correct ?? false;
-
-      try {
-        const timeTaken = useExamStore.getState().getTimeTaken(question.id);
-        const result = await submitAnswer({
-          participantId: participant.id,
-          questionId: question.id,
-          batchId,
-          selectedOptionId: optionId,
-          isCorrect,
-          points: question.points,
-          streakCount: isCorrect ? s.streak : 0,
-          timeRemainingRatio: s.totalTime > 0 ? s.timeRemaining / s.totalTime : 0,
-          timeTakenSeconds: timeTaken,
-        });
-
-        s.addScore(result.pointsEarned);
-        s.addXP(result.xpEarned);
-
-        if (isCorrect) {
-          s.incrementStreak();
-          setFeedbackState("correct");
-        } else {
-          s.resetStreak();
-          setFeedbackState("wrong");
-        }
-
-        setTimeout(() => {
-          setFeedbackState(null);
-          const latest = useExamStore.getState();
-          if (latest.currentIndex < latest.questions.length - 1) {
-            latest.goToNext();
-          } else {
-            doFinish("completed");
-          }
-        }, 1200);
-      } catch {
-        submittedRef.current.delete(question.id);
-      } finally {
-        useExamStore.getState().setSubmitting(false);
-      }
-    },
-    [participant, batchId, feedbackState, doFinish]
-  );
-
-  // Handle time up for current question
-  const handleTimeUp = useCallback(() => {
-    const s = useExamStore.getState();
-    if (s.isFinished || feedbackState) return;
-
-    const question = s.questions[s.currentIndex];
-    if (!question) return;
-
-    if (!submittedRef.current.has(question.id)) {
-      submittedRef.current.add(question.id);
-      s.resetStreak();
-      setFeedbackState("wrong");
-
-      setTimeout(() => {
-        setFeedbackState(null);
-        const latest = useExamStore.getState();
-        if (latest.currentIndex < latest.questions.length - 1) {
-          latest.goToNext();
-        } else {
-          doFinish("timed_out");
-        }
-      }, 800);
+    } catch (err: unknown) {
+      setError((err as Error).message ?? "Failed to submit exam");
+      finishingRef.current = false;
+    } finally {
+      storeRef.current.setSubmitting(false);
     }
-  }, [feedbackState, doFinish]);
+  }, [sessionId, participant]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-surface">
-        <LoadingSpinner text="Preparing your quest..." />
-      </div>
-    );
-  }
+  // ─── Submit single-choice (MCQ / true_false / binary) ─────
+  const handleSingleAnswer = useCallback(async (question: QuestionWithOptions, optionId: string) => {
+    if (storeRef.current.submittedQuestions.has(question.id) || submittingQuestion) return;
+    setSubmittingQuestion(question.id);
+    storeRef.current.markQuestionStart(question.id);
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-surface">
-        <div className="max-w-md w-full bg-white rounded-2xl bubbly-shadow p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-error-container/20 flex items-center justify-center mx-auto mb-4">
-            <MaterialIcon name="error" className="text-3xl text-error" />
-          </div>
-          <p className="text-error font-medium mb-6">{error}</p>
-          <button
-            onClick={() => router.push("/")}
-            className="px-6 py-3 bg-primary text-on-primary font-bold rounded-xl hover:opacity-90 transition-opacity"
-          >
-            Back to Home
-          </button>
-        </div>
-      </div>
-    );
-  }
+    const option = question.options.find((o) => o.id === optionId);
+    const isCorrect = option?.is_correct ?? false;
+    const s = storeRef.current;
+    const timeTaken = s.getTimeTaken(question.id);
+    const timeRatio = s.examTotalTime > 0 ? s.examTimeRemaining / s.examTotalTime : 1;
 
-  if (showResults) {
-    return <ExamResults score={score} xpEarned={xpEarned} maxStreak={store.maxStreak} batchId={batchId} />;
-  }
+    storeRef.current.selectAnswer(question.id, optionId);
+    try {
+      const result = await submitAnswer({
+        type: "single",
+        participantId: participant!.id,
+        questionId: question.id,
+        batchId,
+        selectedOptionId: optionId,
+        isCorrect,
+        points: question.points,
+        streakCount: s.streak,
+        timeRemainingRatio: timeRatio,
+        timeTakenSeconds: timeTaken,
+      });
+      storeRef.current.addScore(result.pointsEarned);
+      storeRef.current.addXP(result.xpEarned);
+      if (isCorrect) storeRef.current.incrementStreak();
+      else storeRef.current.resetStreak();
 
+      setFeedbackMap((prev) => new Map(prev).set(question.id, isCorrect ? "correct" : "wrong"));
+
+      // Auto-advance after brief feedback delay
+      setTimeout(() => {
+        const currentStore = storeRef.current;
+        const idx = currentStore.currentIndex;
+        const qs = currentStore.questions;
+        let nextIdx = -1;
+        for (let i = idx + 1; i < qs.length; i++) {
+          if (!currentStore.submittedQuestions.has(qs[i].id)) { nextIdx = i; break; }
+        }
+        if (nextIdx === -1 && idx < qs.length - 1) nextIdx = idx + 1;
+        if (nextIdx !== -1) currentStore.goToQuestion(nextIdx);
+      }, 700);
+    } catch (err: unknown) {
+      setError((err as Error).message ?? "Failed to save answer");
+    } finally {
+      setSubmittingQuestion(null);
+    }
+  }, [participant, batchId, submittingQuestion]);
+
+  // ─── Submit checkbox ──────────────────────────────────────
+  const handleCheckboxSubmit = useCallback(async (question: QuestionWithOptions) => {
+    if (storeRef.current.submittedQuestions.has(question.id) || submittingQuestion) return;
+    const selections = storeRef.current.checkboxSelections.get(question.id) ?? new Set<string>();
+    if (selections.size === 0) return;
+    setSubmittingQuestion(question.id);
+    storeRef.current.markQuestionStart(question.id);
+    const selectedIds = [...selections];
+    try {
+      const result = await submitAnswer({
+        type: "checkbox",
+        participantId: participant!.id,
+        questionId: question.id,
+        batchId,
+        selectedOptionIds: selectedIds,
+        question,
+        streakCount: storeRef.current.streak,
+        timeTakenSeconds: storeRef.current.getTimeTaken(question.id),
+      });
+      storeRef.current.submitCheckboxQuestion(question.id);
+      storeRef.current.addScore(result.pointsEarned);
+      storeRef.current.addXP(result.xpEarned);
+      const f: FeedbackType =
+        result.pointsEarned === question.points ? "correct" :
+        result.pointsEarned > 0 ? "partial" : "wrong";
+      setFeedbackMap((prev) => new Map(prev).set(question.id, f));
+    } catch (err: unknown) {
+      setError((err as Error).message ?? "Failed to save answer");
+    } finally {
+      setSubmittingQuestion(null);
+    }
+  }, [participant, batchId, submittingQuestion]);
+
+  // ─── Submit essay ─────────────────────────────────────────
+  const handleEssaySubmit = useCallback(async (question: QuestionWithOptions) => {
+    if (storeRef.current.submittedQuestions.has(question.id) || submittingQuestion) return;
+    const text = storeRef.current.essayTexts.get(question.id) ?? "";
+    if (!text.trim()) return;
+    setSubmittingQuestion(question.id);
+    storeRef.current.markQuestionStart(question.id);
+    try {
+      await submitAnswer({
+        type: "essay",
+        participantId: participant!.id,
+        questionId: question.id,
+        batchId,
+        essayText: text,
+        timeTakenSeconds: storeRef.current.getTimeTaken(question.id),
+      });
+      storeRef.current.submitEssayQuestion(question.id);
+      setFeedbackMap((prev) => new Map(prev).set(question.id, "submitted"));
+    } catch (err: unknown) {
+      setError((err as Error).message ?? "Failed to save answer");
+    } finally {
+      setSubmittingQuestion(null);
+    }
+  }, [participant, batchId, submittingQuestion]);
+
+  // ─── Derived values ───────────────────────────────────────
   const currentQuestion = questions[currentIndex];
-  if (!currentQuestion) return null;
+  const answeredCount = submittedQuestions.size;
+  const allAnswered = answeredCount === questions.length && questions.length > 0;
+  const timePercent = examTotalTime > 0 ? (examTimeRemaining / examTotalTime) * 100 : 100;
+  const isTimeLow = examTimeRemaining > 0 && examTimeRemaining <= 60;
 
-  const selectedOptionId = answers.get(currentQuestion.id);
-  const xpProgress = participant ? getXPProgress(participant.xp + xpEarned) : { current: 0, needed: 100, percentage: 0 };
-  const currentLevel = participant ? participant.level : 1;
+  const formatTime = (s: number) => {
+    const m = Math.floor(Math.max(0, s) / 60);
+    const sec = Math.max(0, s) % 60;
+    return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
+  };
 
-  return (
-    <div className="min-h-screen p-4 md:p-8 max-w-4xl mx-auto bg-surface">
-      {/* Top Bar - Player Info */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-primary-container rounded-full flex items-center justify-center">
-            <MaterialIcon name="shield" className="text-xl text-on-primary-container" fill />
+  const getNavBtnClass = (idx: number, qId: string) => {
+    if (idx === currentIndex) return "bg-blue-500 text-white";
+    if (submittedQuestions.has(qId)) return "bg-green-500 text-white";
+    return "bg-surface text-on-surface border border-outline/30 hover:border-primary/50";
+  };
+
+  // ─── Loading / error ──────────────────────────────────────
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen"><LoadingSpinner /></div>;
+  }
+
+  if (error && !showResults) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen gap-4 p-6">
+        <MaterialIcon name="error" className="text-error text-5xl" />
+        <p className="text-on-surface-variant text-center max-w-md">{error}</p>
+        <button onClick={() => router.back()}
+          className="px-4 py-2 rounded-lg bg-primary text-on-primary text-sm">
+          Kembali
+        </button>
+      </div>
+    );
+  }
+
+  // ─── Results screen ───────────────────────────────────────
+  if (showResults) {
+    const passing = batch?.passing_score ?? 0;
+    const passed = passing === 0 || store.score >= passing;
+    const hasEssay = questions.some((q) => q.question_type === "essay");
+
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 gap-6">
+        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+          className="bg-surface rounded-2xl p-8 max-w-md w-full text-center shadow-lg border border-outline/20">
+          <div className={`text-5xl mb-4 ${hasEssay ? "" : passed ? "text-green-400" : "text-error"}`}>
+            {hasEssay ? "📝" : passed ? "🎉" : "😔"}
           </div>
-          <div>
-            <p className="text-on-surface font-bold text-sm">{participant?.name}</p>
-            <p className="text-on-surface-variant text-xs">
-              {getLevelTitle(currentLevel)} &middot; LV.{currentLevel}
+          <h2 className="text-2xl font-bold text-on-surface mb-2">
+            {hasEssay ? "Ujian Selesai!" : passed ? "Selamat!" : "Belum Lulus"}
+          </h2>
+
+          {batch?.show_results !== false && (
+            <p className="text-4xl font-bold text-primary my-4">{store.score}</p>
+          )}
+          {passing > 0 && batch?.show_results !== false && !hasEssay && (
+            <p className={`text-sm font-semibold ${passed ? "text-green-400" : "text-error"}`}>
+              {passed ? "✓ Lulus" : `✗ Tidak Lulus (min. ${passing})`}
             </p>
+          )}
+          {hasEssay && (
+            <p className="text-sm text-on-surface-variant mt-2">
+              Soal essay akan dinilai oleh supervisor. Nilai akan diperbarui setelah penilaian selesai.
+            </p>
+          )}
+
+          <div className="mt-6 grid grid-cols-2 gap-3 text-sm">
+            <div className="bg-surface-variant rounded-lg p-3">
+              <div className="text-on-surface-variant text-xs">XP Diperoleh</div>
+              <div className="font-bold text-primary">+{store.xpEarned}</div>
+            </div>
+            <div className="bg-surface-variant rounded-lg p-3">
+              <div className="text-on-surface-variant text-xs">Streak Terbaik</div>
+              <div className="font-bold text-tertiary">{store.maxStreak} 🔥</div>
+            </div>
           </div>
-        </div>
 
-        {/* Streak */}
-        {streak > 1 && (
-          <motion.div
-            className="flex items-center gap-1 px-4 py-2 rounded-full bg-secondary-container text-on-secondary-container"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-          >
-            <MaterialIcon name="local_fire_department" className="text-lg" fill />
-            <span className="font-black text-sm">{streak}x STREAK</span>
-          </motion.div>
-        )}
-
-        {/* Score */}
-        <div className="text-right">
-          <p className="text-primary font-black text-lg">{score} pts</p>
-          <p className="text-on-surface-variant text-xs">+{xpEarned} XP</p>
-        </div>
-      </div>
-
-      {/* XP Bar */}
-      <div className="mb-4">
-        <div className="flex justify-between text-xs text-on-surface-variant mb-1">
-          <span>LV.{currentLevel}</span>
-          <span>{xpProgress.current}/{xpProgress.needed} XP</span>
-        </div>
-        <div className="h-2 bg-surface-container-high rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-gradient-to-r from-primary to-tertiary rounded-full"
-            initial={{ width: 0 }}
-            animate={{ width: `${xpProgress.percentage}%` }}
-            transition={{ duration: 0.5 }}
-          />
-        </div>
-      </div>
-
-      {/* Timer */}
-      <Timer
-        timeRemaining={timeRemaining}
-        totalTime={totalTime}
-        onTimeUp={handleTimeUp}
-        onTick={store.setTimeRemaining}
-        isPaused={!!feedbackState || isSubmitting}
-      />
-
-      {/* Question Progress */}
-      <div className="flex gap-1.5 my-5 justify-center flex-wrap">
-        {questions.map((q, idx) => (
-          <div
-            key={q.id}
-            className={`w-8 h-8 flex items-center justify-center text-xs font-bold rounded-full transition-all ${
-              idx === currentIndex
-                ? "bg-primary text-on-primary scale-110 shadow-lg shadow-primary/30"
-                : answers.has(q.id)
-                ? "bg-tertiary-container text-on-tertiary-container"
-                : "bg-surface-container-high text-on-surface-variant"
-            }`}
-          >
-            {idx + 1}
-          </div>
-        ))}
-      </div>
-
-      {/* Battle Area */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={currentQuestion.id}
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -30 }}
-          transition={{ duration: 0.2 }}
-        >
-          {/* Question Card */}
-          <div
-            className={`bg-white rounded-2xl bubbly-shadow p-6 md:p-8 mb-6 relative overflow-hidden border-2 transition-colors ${
-              feedbackState === "correct"
-                ? "border-rpg-correct"
-                : feedbackState === "wrong"
-                ? "border-rpg-wrong"
-                : "border-transparent"
-            }`}
-          >
-            {/* Feedback Overlay */}
-            {feedbackState && (
-              <motion.div
-                className={`absolute inset-0 flex items-center justify-center z-10 ${
-                  feedbackState === "correct" ? "bg-rpg-correct/10" : "bg-rpg-wrong/10"
-                }`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-              >
-                <div className="flex items-center gap-2">
-                  <MaterialIcon
-                    name={feedbackState === "correct" ? "check_circle" : "cancel"}
-                    className={`text-4xl ${feedbackState === "correct" ? "text-rpg-correct" : "text-rpg-wrong"}`}
-                    fill
-                  />
-                  <span className="font-black text-xl">
-                    {feedbackState === "correct" ? "CORRECT!" : "WRONG!"}
-                  </span>
-                </div>
-              </motion.div>
+          <div className="mt-4 flex flex-col gap-2">
+            {batch?.show_answers_analysis && (
+              <button onClick={() => router.push(`/review/${batchId}`)}
+                className="w-full px-4 py-2 rounded-lg bg-primary text-on-primary text-sm font-semibold">
+                Lihat Pembahasan
+              </button>
             )}
-
-            <div className="text-center mb-2">
-              <span className="text-on-surface-variant text-xs font-medium uppercase tracking-wider">
-                Quest {currentIndex + 1} of {questions.length}
-              </span>
-            </div>
-            <div className="flex justify-center py-3 mb-3">
-              <div className="w-16 h-16 rounded-full bg-primary-container/50 flex items-center justify-center">
-                <MaterialIcon name="help" className="text-3xl text-primary" fill />
-              </div>
-            </div>
-            <p className="text-on-surface text-center text-base md:text-lg leading-relaxed font-medium">
-              {currentQuestion.question_text}
-            </p>
-            <p className="text-center text-on-surface-variant text-xs mt-3 flex items-center justify-center gap-1">
-              <MaterialIcon name="star" className="text-sm text-primary" fill /> {currentQuestion.points} points
-            </p>
-          </div>
-
-          {/* Answer Choices */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {currentQuestion.options.map((option) => {
-              const isSelected = selectedOptionId === option.id;
-              const showCorrect = feedbackState && option.is_correct;
-              const showWrong = feedbackState === "wrong" && isSelected;
-
-              return (
-                <motion.button
-                  key={option.id}
-                  whileHover={!feedbackState && !isSubmitting ? { scale: 1.02 } : {}}
-                  whileTap={!feedbackState && !isSubmitting ? { scale: 0.98 } : {}}
-                  onClick={() => handleSelectAnswer(option.id)}
-                  disabled={!!feedbackState || isSubmitting || !!selectedOptionId}
-                  className={`
-                    bg-white rounded-xl p-4 text-left transition-all bubbly-shadow border-2
-                    ${
-                      showCorrect
-                        ? "border-rpg-correct bg-rpg-correct/5"
-                        : showWrong
-                        ? "border-rpg-wrong bg-rpg-wrong/5"
-                        : isSelected
-                        ? "border-primary bg-primary-container/20"
-                        : "border-transparent hover:border-primary/30"
-                    }
-                    disabled:cursor-not-allowed
-                  `.trim()}
-                >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black ${
-                        showCorrect
-                          ? "bg-rpg-correct/20 text-rpg-correct"
-                          : showWrong
-                          ? "bg-rpg-wrong/20 text-rpg-wrong"
-                          : "bg-primary-container text-on-primary-container"
-                      }`}
-                    >
-                      {option.option_label}
-                    </span>
-                    <span className="text-sm font-medium text-on-surface">{option.option_text}</span>
-                  </div>
-                </motion.button>
-              );
-            })}
+            <button onClick={() => router.push("/")}
+              className="w-full px-4 py-2 rounded-lg border border-outline text-on-surface text-sm">
+              Kembali ke Beranda
+            </button>
           </div>
         </motion.div>
+      </div>
+    );
+  }
+
+  if (!currentQuestion) return null;
+
+  const isSubmitted = submittedQuestions.has(currentQuestion.id);
+  const feedback = feedbackMap.get(currentQuestion.id);
+  const isBusy = submittingQuestion === currentQuestion.id;
+
+  return (
+    <div className="flex flex-col h-screen bg-background overflow-hidden">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-2 bg-surface border-b border-outline/20 shrink-0">
+        <div className="flex-1 min-w-0">
+          <h1 className="font-bold text-on-surface truncate text-sm">{batch?.name}</h1>
+          <p className="text-xs text-on-surface-variant">{answeredCount}/{questions.length} terjawab</p>
+        </div>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-mono font-bold text-sm transition-colors
+          ${isTimeLow ? "bg-error/20 text-error animate-pulse" : "bg-surface-variant text-on-surface-variant"}`}>
+          <MaterialIcon name="timer" className="text-base" />
+          {formatTime(examTimeRemaining)}
+        </div>
+      </div>
+
+      {/* Timer bar */}
+      <div className="h-1 bg-surface-variant shrink-0">
+        <div className={`h-full transition-all duration-1000 ${isTimeLow ? "bg-error" : "bg-primary"}`}
+          style={{ width: `${timePercent}%` }} />
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Question navigator */}
+        <div className="w-14 md:w-44 bg-surface border-r border-outline/20 flex flex-col shrink-0">
+          <p className="text-xs text-on-surface-variant text-center py-2 border-b border-outline/20 hidden md:block">
+            Navigasi Soal
+          </p>
+          <div className="flex-1 overflow-y-auto p-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+              {questions.map((q, idx) => (
+                <button
+                  key={q.id}
+                  onClick={() => { storeRef.current.markQuestionStart(q.id); storeRef.current.goToQuestion(idx); }}
+                  className={`w-full aspect-square rounded-lg text-xs font-bold transition-all ${getNavBtnClass(idx, q.id)}`}
+                >
+                  {idx + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="p-2 border-t border-outline/20 hidden md:block space-y-1 text-xs text-on-surface-variant">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-blue-500 shrink-0" /> Saat ini
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded bg-green-500 shrink-0" /> Terjawab
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded border border-outline/30 shrink-0" /> Belum
+            </div>
+          </div>
+        </div>
+
+        {/* Question area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6">
+            <AnimatePresence mode="wait">
+              <motion.div key={currentQuestion.id}
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}
+                className="max-w-2xl mx-auto">
+
+                {/* Question header */}
+                <div className="flex items-start gap-3 mb-6">
+                  <span className="bg-primary text-on-primary text-sm font-bold rounded-full w-8 h-8 flex items-center justify-center shrink-0 mt-0.5">
+                    {currentIndex + 1}
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-on-surface font-medium leading-relaxed whitespace-pre-wrap">
+                      {currentQuestion.question_text}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <span className="text-xs text-on-surface-variant bg-surface-variant px-2 py-0.5 rounded">
+                        {currentQuestion.points} poin
+                      </span>
+                      {currentQuestion.category && (
+                        <span className="text-xs text-tertiary bg-tertiary/10 px-2 py-0.5 rounded">
+                          {currentQuestion.category}
+                        </span>
+                      )}
+                      {currentQuestion.question_type !== "multiple_choice" && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-surface-variant text-on-surface-variant capitalize">
+                          {currentQuestion.question_type === "true_false" ? "Benar/Salah" :
+                           currentQuestion.question_type === "binary" ? "Ya/Tidak" :
+                           currentQuestion.question_type === "checkbox" ? "Pilih Semua Benar" :
+                           "Essay"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Feedback banner */}
+                <AnimatePresence>
+                  {feedback && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className={`mb-4 px-4 py-3 rounded-lg text-sm font-medium flex items-center gap-2
+                        ${feedback === "correct" ? "bg-green-500/20 text-green-400" :
+                          feedback === "partial" ? "bg-yellow-500/20 text-yellow-400" :
+                          feedback === "submitted" ? "bg-blue-500/20 text-blue-400" :
+                          "bg-error/20 text-error"}`}>
+                      <MaterialIcon name={
+                        feedback === "correct" ? "check_circle" :
+                        feedback === "partial" ? "rule" :
+                        feedback === "submitted" ? "hourglass_empty" : "cancel"} />
+                      {feedback === "correct" ? "Jawaban benar!" :
+                       feedback === "partial" ? "Benar sebagian — nilai parsial diberikan" :
+                       feedback === "submitted" ? "Terkirim — menunggu penilaian supervisor" :
+                       "Jawaban salah"}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* MCQ */}
+                {currentQuestion.question_type === "multiple_choice" && (
+                  <div className="space-y-3">
+                    {currentQuestion.options.map((opt) => {
+                      const isSelected = answers.get(currentQuestion.id) === opt.id;
+                      const showCorrect = isSubmitted && opt.is_correct;
+                      const showWrong = isSubmitted && isSelected && !opt.is_correct;
+                      return (
+                        <button key={opt.id} disabled={isSubmitted || isBusy}
+                          onClick={() => handleSingleAnswer(currentQuestion, opt.id)}
+                          className={`w-full text-left px-4 py-3 rounded-xl border transition-all text-sm
+                            ${showCorrect ? "border-green-500 bg-green-500/10 text-green-400" :
+                              showWrong ? "border-error bg-error/10 text-error" :
+                              isSelected ? "border-primary bg-primary/10 text-primary" :
+                              "border-outline/30 bg-surface text-on-surface"}
+                            ${!isSubmitted && !isBusy ? "hover:border-primary/50 hover:bg-primary/5 cursor-pointer" : "cursor-default"}`}>
+                          <span className="font-semibold mr-2">{opt.option_label}.</span>
+                          {opt.option_text}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* True/False */}
+                {currentQuestion.question_type === "true_false" && (
+                  <div className="flex gap-4">
+                    {currentQuestion.options.map((opt) => {
+                      const isSelected = answers.get(currentQuestion.id) === opt.id;
+                      const showCorrect = isSubmitted && opt.is_correct;
+                      const showWrong = isSubmitted && isSelected && !opt.is_correct;
+                      return (
+                        <button key={opt.id} disabled={isSubmitted || isBusy}
+                          onClick={() => handleSingleAnswer(currentQuestion, opt.id)}
+                          className={`flex-1 py-5 rounded-xl border font-bold text-lg transition-all
+                            ${showCorrect ? "border-green-500 bg-green-500/20 text-green-400" :
+                              showWrong ? "border-error bg-error/20 text-error" :
+                              isSelected ? "border-primary bg-primary/20 text-primary" :
+                              "border-outline/30 bg-surface text-on-surface"}
+                            ${!isSubmitted && !isBusy ? "hover:border-primary/50 cursor-pointer" : "cursor-default"}`}>
+                          {opt.option_text}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Binary (Ya/Tidak) */}
+                {currentQuestion.question_type === "binary" && (
+                  <div className="flex gap-4">
+                    {currentQuestion.options.map((opt) => {
+                      const isSelected = answers.get(currentQuestion.id) === opt.id;
+                      const showCorrect = isSubmitted && opt.is_correct;
+                      const showWrong = isSubmitted && isSelected && !opt.is_correct;
+                      return (
+                        <button key={opt.id} disabled={isSubmitted || isBusy}
+                          onClick={() => handleSingleAnswer(currentQuestion, opt.id)}
+                          className={`flex-1 py-5 rounded-xl border font-bold text-lg transition-all
+                            ${showCorrect ? "border-green-500 bg-green-500/20 text-green-400" :
+                              showWrong ? "border-error bg-error/20 text-error" :
+                              isSelected ? "border-primary bg-primary/20 text-primary" :
+                              "border-outline/30 bg-surface text-on-surface"}
+                            ${!isSubmitted && !isBusy ? "hover:border-primary/50 cursor-pointer" : "cursor-default"}`}>
+                          {opt.option_text}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Checkbox */}
+                {currentQuestion.question_type === "checkbox" && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-on-surface-variant">
+                      Pilih semua jawaban yang benar (boleh lebih dari satu)
+                    </p>
+                    {currentQuestion.options.map((opt) => {
+                      const sel = checkboxSelections.get(currentQuestion.id) ?? new Set<string>();
+                      const isChecked = sel.has(opt.id);
+                      const showCorrect = isSubmitted && opt.is_correct;
+                      const showWrong = isSubmitted && isChecked && !opt.is_correct;
+                      return (
+                        <button key={opt.id} disabled={isSubmitted || isBusy}
+                          onClick={() => !isSubmitted && store.toggleCheckboxOption(currentQuestion.id, opt.id)}
+                          className={`w-full text-left px-4 py-3 rounded-xl border transition-all text-sm flex items-center gap-3
+                            ${showCorrect ? "border-green-500 bg-green-500/10" :
+                              showWrong ? "border-error bg-error/10" :
+                              isChecked ? "border-primary bg-primary/10" :
+                              "border-outline/30 bg-surface"}
+                            ${!isSubmitted ? "hover:border-primary/50 hover:bg-primary/5 cursor-pointer" : "cursor-default"}`}>
+                          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors
+                            ${showCorrect ? "border-green-500 bg-green-500" :
+                              showWrong ? "border-error bg-error" :
+                              isChecked ? "border-primary bg-primary" : "border-outline/40"}`}>
+                            {(isChecked || showCorrect) && <MaterialIcon name="check" className="text-white text-xs" />}
+                          </div>
+                          <span className={showCorrect ? "text-green-400" : showWrong ? "text-error" : "text-on-surface"}>
+                            <span className="font-semibold mr-1">{opt.option_label}.</span>
+                            {opt.option_text}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {!isSubmitted && (
+                      <button disabled={isBusy || (checkboxSelections.get(currentQuestion.id)?.size ?? 0) === 0}
+                        onClick={() => handleCheckboxSubmit(currentQuestion)}
+                        className="mt-1 w-full py-3 rounded-xl bg-primary text-on-primary font-semibold text-sm
+                          disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition">
+                        {isBusy ? "Menyimpan..." : "Submit Jawaban"}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Essay */}
+                {currentQuestion.question_type === "essay" && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-on-surface-variant">
+                      Jawaban akan dinilai secara manual oleh supervisor area Anda.
+                    </p>
+                    <textarea
+                      disabled={isSubmitted}
+                      value={essayTexts.get(currentQuestion.id) ?? ""}
+                      onChange={(e) => store.setEssayText(currentQuestion.id, e.target.value)}
+                      rows={7}
+                      placeholder="Tulis jawaban Anda di sini..."
+                      className="w-full px-4 py-3 rounded-xl border border-outline/30 bg-surface text-on-surface
+                        text-sm resize-y focus:outline-none focus:border-primary transition-colors
+                        disabled:opacity-60 disabled:bg-surface-variant disabled:cursor-default"
+                    />
+                    {!isSubmitted && (
+                      <button
+                        disabled={isBusy || !(essayTexts.get(currentQuestion.id) ?? "").trim()}
+                        onClick={() => handleEssaySubmit(currentQuestion)}
+                        className="w-full py-3 rounded-xl bg-primary text-on-primary font-semibold text-sm
+                          disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition">
+                        {isBusy ? "Menyimpan..." : "Submit Jawaban"}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* Bottom navigation */}
+          <div className="px-4 py-3 bg-surface border-t border-outline/20 flex items-center justify-between gap-3 shrink-0">
+            <button disabled={currentIndex === 0} onClick={() => store.goToPrevious()}
+              className="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline/30 text-sm text-on-surface
+                disabled:opacity-30 hover:bg-surface-variant transition">
+              <MaterialIcon name="chevron_left" /> Sebelumnya
+            </button>
+
+            <button onClick={() => setShowConfirmFinish(true)} disabled={isSubmitting}
+              className={`px-5 py-2 rounded-lg text-sm font-bold transition
+                ${allAnswered ? "bg-primary text-on-primary hover:opacity-90" :
+                  "bg-surface-variant text-on-surface-variant border border-outline/30 hover:bg-error/10 hover:text-error hover:border-error/30"}`}>
+              {isSubmitting ? "Menyimpan..." : "Selesai Ujian"}
+            </button>
+
+            <button disabled={currentIndex === questions.length - 1} onClick={() => store.goToNext()}
+              className="flex items-center gap-1 px-3 py-2 rounded-lg border border-outline/30 text-sm text-on-surface
+                disabled:opacity-30 hover:bg-surface-variant transition">
+              Berikutnya <MaterialIcon name="chevron_right" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Confirm finish dialog */}
+      <AnimatePresence>
+        {showConfirmFinish && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowConfirmFinish(false); }}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-surface rounded-2xl p-6 max-w-sm w-full shadow-xl border border-outline/20">
+              <h3 className="font-bold text-on-surface text-lg mb-3">Selesaikan Ujian?</h3>
+              {!allAnswered ? (
+                <p className="text-sm text-on-surface-variant mb-4">
+                  Masih ada{" "}
+                  <span className="font-bold text-error">{questions.length - answeredCount}</span>{" "}
+                  soal belum terjawab. Tetap selesaikan?
+                </p>
+              ) : (
+                <p className="text-sm text-on-surface-variant mb-4">
+                  Semua soal sudah terjawab. Konfirmasi untuk mengakhiri ujian.
+                </p>
+              )}
+              <div className="flex gap-3">
+                <button onClick={() => setShowConfirmFinish(false)}
+                  className="flex-1 py-2 rounded-lg border border-outline/30 text-sm text-on-surface hover:bg-surface-variant">
+                  Batal
+                </button>
+                <button onClick={() => handleFinish("completed")} disabled={isSubmitting}
+                  className="flex-1 py-2 rounded-lg bg-primary text-on-primary text-sm font-bold hover:opacity-90 disabled:opacity-50">
+                  {isSubmitting ? "Menyimpan..." : "Ya, Selesai"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );
 }
 
-function ExamResults({
-  score,
-  xpEarned,
-  maxStreak,
-  batchId,
-}: {
-  score: number;
-  xpEarned: number;
-  maxStreak: number;
-  batchId: string;
-}) {
-  const router = useRouter();
-
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-surface">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="max-w-md w-full"
-      >
-        <div className="bg-white rounded-2xl bubbly-shadow p-8 text-center">
-          <motion.div
-            initial={{ y: -20 }}
-            animate={{ y: 0 }}
-            transition={{ delay: 0.3, type: "spring" }}
-          >
-            <div className="w-20 h-20 rounded-full bg-primary-container mx-auto flex items-center justify-center mb-4">
-              <MaterialIcon name="emoji_events" className="text-4xl text-on-primary-container" fill />
-            </div>
-            <h2 className="text-2xl font-black text-on-surface mb-1">Quest Complete!</h2>
-            <p className="text-on-surface-variant text-sm mb-6">Well done, hero!</p>
-          </motion.div>
-
-          <div className="grid grid-cols-3 gap-3 mb-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-            >
-              <div className="bg-surface-container-lowest rounded-xl p-4 border border-outline-variant/10">
-                <div className="text-primary font-black text-xl">{score}</div>
-                <div className="text-on-surface-variant text-xs">Score</div>
-              </div>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
-            >
-              <div className="bg-surface-container-lowest rounded-xl p-4 border border-outline-variant/10">
-                <div className="text-tertiary font-black text-xl">+{xpEarned}</div>
-                <div className="text-on-surface-variant text-xs">XP</div>
-              </div>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.9 }}
-            >
-              <div className="bg-surface-container-lowest rounded-xl p-4 border border-outline-variant/10">
-                <div className="text-secondary font-black text-xl">{maxStreak}x</div>
-                <div className="text-on-surface-variant text-xs">Streak</div>
-              </div>
-            </motion.div>
-          </div>
-
-          <div className="space-y-3">
-            <button
-              className="w-full px-6 py-3 bg-gradient-to-br from-primary to-primary-container text-on-primary font-bold rounded-xl shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2"
-              onClick={() => router.push(`/review/${batchId}`)}
-            >
-              <MaterialIcon name="auto_stories" /> Review Answers
-            </button>
-            <button
-              className="w-full px-6 py-3 bg-surface-container-high text-on-surface font-bold rounded-xl hover:bg-surface-container transition-colors flex items-center justify-center gap-2"
-              onClick={() => router.push("/leaderboard")}
-            >
-              <MaterialIcon name="leaderboard" /> Leaderboard
-            </button>
-            <button
-              className="w-full px-6 py-3 bg-surface-container-high text-on-surface font-bold rounded-xl hover:bg-surface-container transition-colors flex items-center justify-center gap-2"
-              onClick={() => router.push("/")}
-            >
-              <MaterialIcon name="home" /> Back to Home
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-export default function ExamPageWrapper() {
+export default function Page() {
   return (
     <AuthProvider>
       <ExamPage />

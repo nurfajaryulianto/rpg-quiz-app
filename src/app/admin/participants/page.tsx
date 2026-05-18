@@ -20,6 +20,8 @@ import { getLevelTitle } from "@/utils/gamification";
 interface ParticipantForm {
   name: string;
   nik: string;
+  role: "participant" | "supervisor" | "admin";
+  area: string;
 }
 
 export default function ParticipantsPage() {
@@ -38,7 +40,7 @@ export default function ParticipantsPage() {
   const loadParticipants = useCallback(async () => {
     try {
       const data = await getParticipants();
-      setParticipants(data.filter((p) => p.role === "participant"));
+      setParticipants(data);
     } finally {
       setLoading(false);
     }
@@ -82,11 +84,15 @@ export default function ParticipantsPage() {
         await updateParticipant(editingParticipant.id, {
           name: data.name,
           nik: data.nik,
+          role: data.role,
+          area: data.area?.trim() || null,
         });
       } else {
         await createParticipant({
           name: data.name,
           nik: data.nik,
+          role: data.role,
+          area: data.area?.trim() || null,
         });
       }
       reset();
@@ -104,6 +110,8 @@ export default function ParticipantsPage() {
     setEditingParticipant(p);
     setValue("name", p.name);
     setValue("nik", p.nik ?? "");
+    setValue("role", (p.role ?? "participant") as ParticipantForm["role"]);
+    setValue("area", p.area ?? "");
     setShowForm(true);
   };
 
@@ -150,7 +158,7 @@ export default function ParticipantsPage() {
         </div>
         <button
           onClick={() => {
-            reset({ name: "", nik: "" });
+            reset({ name: "", nik: "", role: "participant", area: "" });
             setEditingParticipant(null);
             setShowForm(!showForm);
           }}
@@ -176,11 +184,11 @@ export default function ParticipantsPage() {
             <form onSubmit={handleSubmit(onSubmitParticipant)} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-on-surface-variant text-sm font-medium mb-1">Name</label>
+                  <label className="block text-on-surface-variant text-sm font-medium mb-1">Nama</label>
                   <input
-                    {...register("name", { required: "Name is required" })}
+                    {...register("name", { required: "Nama wajib diisi" })}
                     className={inputClasses}
-                    placeholder="Participant name"
+                    placeholder="Nama lengkap"
                   />
                   {errors.name && (
                     <p className="text-error text-xs mt-1">{errors.name.message}</p>
@@ -200,6 +208,23 @@ export default function ParticipantsPage() {
                   {errors.nik && (
                     <p className="text-error text-xs mt-1">{errors.nik.message}</p>
                   )}
+                </div>
+                <div>
+                  <label className="block text-on-surface-variant text-sm font-medium mb-1">Role</label>
+                  <select {...register("role")} className={inputClasses} defaultValue="participant">
+                    <option value="participant">Participant</option>
+                    <option value="supervisor">Supervisor</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-on-surface-variant text-sm font-medium mb-1">Area</label>
+                  <input
+                    {...register("area")}
+                    className={inputClasses}
+                    placeholder="Area / Unit kerja (opsional)"
+                  />
+                  <p className="text-on-surface-variant text-xs mt-1">Wajib diisi untuk supervisor (digunakan untuk filter essay grading)</p>
                 </div>
               </div>
               <div className="flex gap-3">
@@ -295,27 +320,33 @@ export default function ParticipantsPage() {
       ) : (
         <div className="bg-surface-container-lowest rounded-xl bubbly-shadow overflow-hidden">
           {/* Table Header */}
-          <div className="hidden md:grid grid-cols-8 gap-2 px-6 py-3 bg-surface-container-low text-on-surface-variant text-xs font-bold uppercase">
-            <span className="col-span-2">Hero</span>
+          <div className="hidden md:grid grid-cols-9 gap-2 px-6 py-3 bg-surface-container-low text-on-surface-variant text-xs font-bold uppercase">
+            <span className="col-span-2">Peserta</span>
+            <span>Role</span>
+            <span>Area</span>
             <span>Level</span>
             <span>XP</span>
             <span>Score</span>
             <span>Quests</span>
-            <span className="col-span-2">Actions</span>
+            <span>Actions</span>
           </div>
 
           <div className="divide-y divide-surface-container">
             {filteredParticipants.map((p) => (
-              <div key={p.id} className="grid grid-cols-1 md:grid-cols-8 gap-2 items-center px-6 py-4 hover:bg-surface-container-low/50 transition-colors">
+              <div key={p.id} className="grid grid-cols-1 md:grid-cols-9 gap-2 items-center px-6 py-4 hover:bg-surface-container-low/50 transition-colors">
                 <div className="col-span-2 flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center">
-                    <MaterialIcon name="person" className="text-sm text-on-primary-container" fill />
+                    <MaterialIcon name={p.role === "supervisor" ? "manage_accounts" : p.role === "admin" ? "admin_panel_settings" : "person"} className="text-sm text-on-primary-container" fill />
                   </div>
                   <div>
                     <p className="font-bold text-sm text-on-surface">{p.name}</p>
                     <p className="text-on-surface-variant text-xs">{p.nik ?? p.email}</p>
                   </div>
                 </div>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-full w-fit ${p.role === "admin" ? "bg-error-container/40 text-error" : p.role === "supervisor" ? "bg-secondary-container text-on-secondary-container" : "bg-primary-container/40 text-primary"}`}>
+                  {p.role ?? "participant"}
+                </span>
+                <span className="text-xs text-on-surface-variant">{p.area ?? "—"}</span>
                 <div className="text-sm">
                   <span className="text-primary font-bold text-xs">LV.{p.level}</span>
                   <span className="text-on-surface-variant text-xs ml-1">{getLevelTitle(p.level)}</span>
@@ -323,7 +354,7 @@ export default function ParticipantsPage() {
                 <span className="text-sm text-on-surface">{p.xp}</span>
                 <span className="text-sm text-primary font-bold">{p.total_score}</span>
                 <span className="text-sm text-on-surface">{p.quizzes_taken}</span>
-                <div className="col-span-2 flex gap-2 flex-wrap">
+                <div className="flex gap-2 flex-wrap">
                   <button onClick={() => handleEdit(p)} className={btnSecondary}>
                     <MaterialIcon name="edit" className="text-sm" />
                   </button>

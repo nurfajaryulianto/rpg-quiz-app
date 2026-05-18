@@ -7,7 +7,8 @@ import { shuffleArray, calculateXP, calculateScore } from "@/utils/gamification"
  * Throws a user-friendly error if the batch cannot be accessed right now.
  */
 export function assertBatchAccessible(batch: Batch): void {
-  const now = Date.now();
+  const now = new Date();
+  const nowMs = now.getTime();
 
   if (!batch.is_active) {
     throw new Error("This quest is not currently active.");
@@ -15,8 +16,8 @@ export function assertBatchAccessible(batch: Batch): void {
 
   if (batch.start_time) {
     const start = new Date(batch.start_time).getTime();
-    if (now < start) {
-      const diff = Math.ceil((start - now) / 60000);
+    if (nowMs < start) {
+      const diff = Math.ceil((start - nowMs) / 60000);
       throw new Error(
         `This exam hasn't started yet. It opens in ${diff} minute${diff !== 1 ? "s" : ""}.`
       );
@@ -25,15 +26,29 @@ export function assertBatchAccessible(batch: Batch): void {
 
   if (batch.end_time) {
     const end = new Date(batch.end_time).getTime();
-    if (now > end) {
+    if (nowMs > end) {
       throw new Error("The exam window for this quest has closed.");
+    }
+  }
+
+  // Working-hours gate (browser local time: Mon–Fri 07:00–16:00)
+  if (batch.working_hours_only) {
+    const day = now.getDay(); // 0=Sun, 6=Sat
+    const minutesFromMidnight = now.getHours() * 60 + now.getMinutes();
+    const isWeekday = day >= 1 && day <= 5;
+    const isWorkingHours = minutesFromMidnight >= 7 * 60 && minutesFromMidnight < 16 * 60;
+    if (!isWeekday || !isWorkingHours) {
+      throw new Error(
+        "This exam is only accessible during working hours (Monday–Friday, 07:00–16:00)."
+      );
     }
   }
 }
 
 /**
- * Fetch questions for a batch, respecting the stored question_order (for randomization).
- * Options are always shuffled per-request to prevent pattern memorisation.
+ * Fetch questions for a batch, respecting the stored question_order (for randomisation).
+ * Options for single-choice questions are always shuffled per-request.
+ * Essay questions have no options.
  */
 export async function fetchExamQuestions(
   batchId: string,
@@ -58,40 +73,56 @@ export async function fetchExamQuestions(
     );
   }
 
-  // Always shuffle answer options to prevent pattern memorisation
+  // Shuffle options for single-choice types only
   return questions.map((q) => ({
     ...q,
-    options: shuffleArray(q.options),
+    options:
+      q.question_type === "essay" ? q.options : shuffleArray(q.options),
   }));
 }
 
 /**
  * Start (or resume) an exam session.
- * On first start, generates a randomised question_order if the batch requires it.
- * Uses a single upsert-like pattern to avoid race conditions on double-clicks.
+ * Respects max_attempts: throws if the participant has exhausted their attempts.
+ * Sets attempt_number and is_leaderboard_eligible automatically.
  */
 export async function startExamSession(
   participantId: string,
   batchId: string,
   batch: Batch
 ): Promise<ExamSession> {
-  // Check if session already exists — use .maybeSingle() to avoid 406 errors
-  const { data: existing, error: fetchError } = await supabase
+  // Fetch all existing sessions for this participant + batch
+  const { data: sessions, error: fetchError } = await supabase
     .from("exam_sessions")
     .select("*")
     .eq("participant_id", participantId)
     .eq("batch_id", batchId)
-    .maybeSingle();
+    .order("attempt_number", { ascending: true });
 
   if (fetchError) throw fetchError;
 
-  const existingSession = existing as ExamSession | null;
-  if (existingSession) {
-    if (existingSession.status === "completed" || existingSession.status === "timed_out") {
-      throw new Error("You have already completed this quest.");
-    }
-    return existingSession; // Resume in-progress session
+  const allSessions = (sessions ?? []) as ExamSession[];
+
+  // Resume any in-progress session
+  const inProgress = allSessions.find((s) => s.status === "in_progress");
+  if (inProgress) return inProgress;
+
+  // Count completed/timed-out sessions = past attempts
+  const completedCount = allSessions.filter(
+    (s) => s.status === "completed" || s.status === "timed_out"
+  ).length;
+
+  const maxAttempts = batch.max_attempts ?? 1;
+  if (completedCount >= maxAttempts) {
+    throw new Error(
+      maxAttempts === 1
+        ? "You have already completed this quest."
+        : `You have used all ${maxAttempts} attempts for this exam.`
+    );
   }
+
+  const attemptNumber = completedCount + 1;
+  const isLeaderboardEligible = attemptNumber === 1;
 
   // Build question_order for randomised batches
   let questionOrder: string[] | null = null;
@@ -114,19 +145,22 @@ export async function startExamSession(
       batch_id: batchId,
       status: "in_progress",
       question_order: questionOrder,
+      attempt_number: attemptNumber,
+      is_leaderboard_eligible: isLeaderboardEligible,
     })
     .select()
     .single();
 
   if (error) {
-    // If a concurrent request already inserted, fetch and return that session
+    // Race condition: another request already inserted; find and return it
     if (error.code === "23505") {
       const { data: race } = await supabase
         .from("exam_sessions")
         .select("*")
         .eq("participant_id", participantId)
         .eq("batch_id", batchId)
-        .single();
+        .eq("status", "in_progress")
+        .maybeSingle();
       if (race) return race as ExamSession;
     }
     throw error;
@@ -135,11 +169,12 @@ export async function startExamSession(
   return data as ExamSession;
 }
 
-/**
- * Submit an answer for a question.
- * time_taken_seconds: actual seconds elapsed since the question was shown.
- */
-export async function submitAnswer(params: {
+// ----------------------------------------------------------------
+// Answer submission — unified API with question-type variants
+// ----------------------------------------------------------------
+
+type SubmitSingleParams = {
+  type: "single";
   participantId: string;
   questionId: string;
   batchId: string;
@@ -149,53 +184,134 @@ export async function submitAnswer(params: {
   streakCount: number;
   timeRemainingRatio: number;
   timeTakenSeconds: number;
-}) {
-  const xpEarned = calculateXP({
-    isCorrect: params.isCorrect,
-    points: params.points,
-    streakCount: params.streakCount,
-    timeRemainingRatio: params.timeRemainingRatio,
-  });
+};
 
-  const pointsEarned = calculateScore({
-    isCorrect: params.isCorrect,
-    basePoints: params.points,
-    streakCount: params.streakCount,
-    timeRemainingRatio: params.timeRemainingRatio,
-  });
+type SubmitCheckboxParams = {
+  type: "checkbox";
+  participantId: string;
+  questionId: string;
+  batchId: string;
+  selectedOptionIds: string[];
+  question: QuestionWithOptions;
+  streakCount: number;
+  timeTakenSeconds: number;
+};
 
+type SubmitEssayParams = {
+  type: "essay";
+  participantId: string;
+  questionId: string;
+  batchId: string;
+  essayText: string;
+  timeTakenSeconds: number;
+};
+
+export type SubmitAnswerParams =
+  | SubmitSingleParams
+  | SubmitCheckboxParams
+  | SubmitEssayParams;
+
+export async function submitAnswer(params: SubmitAnswerParams) {
+  if (params.type === "single") {
+    const xpEarned = calculateXP({
+      isCorrect: params.isCorrect,
+      points: params.points,
+      streakCount: params.streakCount,
+      timeRemainingRatio: params.timeRemainingRatio,
+    });
+    const pointsEarned = calculateScore({
+      isCorrect: params.isCorrect,
+      basePoints: params.points,
+      streakCount: params.streakCount,
+      timeRemainingRatio: params.timeRemainingRatio,
+    });
+
+    const { data, error } = await supabase
+      .from("answers")
+      .insert({
+        participant_id: params.participantId,
+        question_id: params.questionId,
+        batch_id: params.batchId,
+        selected_option_id: params.selectedOptionId,
+        is_correct: params.isCorrect,
+        points_earned: pointsEarned,
+        xp_earned: xpEarned,
+        streak_count: params.streakCount,
+        time_taken_seconds: params.timeTakenSeconds,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { answer: data, pointsEarned, xpEarned };
+  }
+
+  if (params.type === "checkbox") {
+    const { question, selectedOptionIds } = params;
+    const correctOptions = question.options.filter((o) => o.is_correct);
+    const totalCorrect = correctOptions.length;
+    const correctPicks = selectedOptionIds.filter((id) =>
+      correctOptions.some((o) => o.id === id)
+    ).length;
+    const ratio = totalCorrect > 0 ? correctPicks / totalCorrect : 0;
+    const pointsEarned = Math.round(ratio * question.points);
+    const isCorrect = correctPicks === totalCorrect && selectedOptionIds.length === totalCorrect;
+    const xpEarned = Math.round(ratio * question.points * 2); // approximate XP
+
+    const { data, error } = await supabase
+      .from("answers")
+      .insert({
+        participant_id: params.participantId,
+        question_id: params.questionId,
+        batch_id: params.batchId,
+        selected_option_ids: selectedOptionIds,
+        is_correct: isCorrect,
+        points_earned: pointsEarned,
+        xp_earned: xpEarned,
+        streak_count: params.streakCount,
+        time_taken_seconds: params.timeTakenSeconds,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { answer: data, pointsEarned, xpEarned };
+  }
+
+  // Essay
   const { data, error } = await supabase
     .from("answers")
     .insert({
       participant_id: params.participantId,
       question_id: params.questionId,
       batch_id: params.batchId,
-      selected_option_id: params.selectedOptionId,
-      is_correct: params.isCorrect,
-      points_earned: pointsEarned,
-      xp_earned: xpEarned,
-      streak_count: params.streakCount,
+      essay_text: params.essayText,
+      is_correct: false,
+      points_earned: 0,
+      xp_earned: 0,
+      streak_count: 0,
       time_taken_seconds: params.timeTakenSeconds,
+      essay_graded: false,
     })
     .select()
     .single();
 
   if (error) throw error;
-  return { answer: data, pointsEarned, xpEarned };
+  return { answer: data, pointsEarned: 0, xpEarned: 0 };
 }
 
 /**
- * Finish an exam session and update participant cumulative stats.
+ * Finish an exam session by session ID.
+ * Updates session status and recalculates participant cumulative stats.
  */
 export async function finishExam(params: {
+  sessionId: string;
   participantId: string;
-  batchId: string;
   totalScore: number;
   totalXP: number;
   maxStreak: number;
   status: "completed" | "timed_out";
 }) {
-  // Update exam session atomically first
   const { error: sessionError } = await supabase
     .from("exam_sessions")
     .update({
@@ -205,12 +321,10 @@ export async function finishExam(params: {
       max_streak: params.maxStreak,
       finished_at: new Date().toISOString(),
     })
-    .eq("participant_id", params.participantId)
-    .eq("batch_id", params.batchId);
+    .eq("id", params.sessionId);
 
   if (sessionError) throw sessionError;
 
-  // Read current participant stats
   const { data: pData, error: pError } = await supabase
     .from("participants")
     .select("xp, total_score, quizzes_taken")
@@ -229,12 +343,7 @@ export async function finishExam(params: {
 
   const { error: updateError } = await supabase
     .from("participants")
-    .update({
-      xp: newXP,
-      total_score: newScore,
-      quizzes_taken: newQuizzes,
-      level: newLevel,
-    })
+    .update({ xp: newXP, total_score: newScore, quizzes_taken: newQuizzes, level: newLevel })
     .eq("id", params.participantId);
 
   if (updateError) throw updateError;
@@ -243,7 +352,78 @@ export async function finishExam(params: {
 }
 
 /**
- * Get an existing exam session for a participant+batch (null if none).
+ * Grade an essay answer. Updates the answer and recalculates the session score.
+ */
+export async function gradeEssay(params: {
+  answerId: string;
+  score: number;
+  gradedBy: string;
+}): Promise<void> {
+  // Update the answer with grade
+  const { data: answerData, error: answerError } = await supabase
+    .from("answers")
+    .update({
+      essay_graded: true,
+      graded_score: params.score,
+      points_earned: params.score,
+      is_correct: params.score > 0,
+      graded_by: params.gradedBy,
+      graded_at: new Date().toISOString(),
+    })
+    .eq("id", params.answerId)
+    .select("participant_id, batch_id")
+    .single();
+
+  if (answerError) throw answerError;
+
+  const { participant_id, batch_id } = answerData as { participant_id: string; batch_id: string };
+
+  // Recalculate total score from all answers for this participant+batch
+  const { data: allAnswers, error: sumError } = await supabase
+    .from("answers")
+    .select("points_earned")
+    .eq("participant_id", participant_id)
+    .eq("batch_id", batch_id);
+
+  if (sumError) throw sumError;
+
+  const totalScore = (allAnswers ?? []).reduce(
+    (sum: number, a: { points_earned: number }) => sum + (a.points_earned ?? 0),
+    0
+  );
+
+  // Update the most recent completed session for this participant+batch
+  const { error: sessionError } = await supabase
+    .from("exam_sessions")
+    .update({ score: totalScore })
+    .eq("participant_id", participant_id)
+    .eq("batch_id", batch_id)
+    .in("status", ["completed", "timed_out"]);
+
+  if (sessionError) throw sessionError;
+}
+
+/**
+ * Get existing exam sessions for a participant+batch (all attempts).
+ */
+export async function getExamSessions(
+  participantId: string,
+  batchId: string
+): Promise<ExamSession[]> {
+  const { data, error } = await supabase
+    .from("exam_sessions")
+    .select("*")
+    .eq("participant_id", participantId)
+    .eq("batch_id", batchId)
+    .order("attempt_number", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as ExamSession[];
+}
+
+/**
+ * Get a single exam session for a participant+batch (most recent).
+ * @deprecated Prefer getExamSessions() with multiple attempts.
  */
 export async function getExamSession(
   participantId: string,
@@ -254,9 +434,11 @@ export async function getExamSession(
     .select("*")
     .eq("participant_id", participantId)
     .eq("batch_id", batchId)
+    .order("attempt_number", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+  return data as ExamSession | null;
 }
 

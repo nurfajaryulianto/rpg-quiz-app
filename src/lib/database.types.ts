@@ -8,7 +8,8 @@ export type Database = {
           name: string;
           email: string;
           nik: string | null;
-          role: "participant" | "admin";
+          role: "participant" | "supervisor" | "admin";
+          area: string | null;
           level: number;
           xp: number;
           total_score: number;
@@ -24,7 +25,8 @@ export type Database = {
           name: string;
           email: string;
           nik?: string | null;
-          role?: "participant" | "admin";
+          role?: "participant" | "supervisor" | "admin";
+          area?: string | null;
           level?: number;
           xp?: number;
           total_score?: number;
@@ -40,7 +42,8 @@ export type Database = {
           name?: string;
           email?: string;
           nik?: string | null;
-          role?: "participant" | "admin";
+          role?: "participant" | "supervisor" | "admin";
+          area?: string | null;
           level?: number;
           xp?: number;
           total_score?: number;
@@ -61,6 +64,13 @@ export type Database = {
           randomize_questions: boolean;
           start_time: string | null;
           end_time: string | null;
+          passing_score: number;
+          checkbox_options_count: number;
+          max_attempts: number;
+          show_results: boolean;
+          show_answers_analysis: boolean;
+          working_hours_only: boolean;
+          reminder_before_start: boolean;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -74,6 +84,13 @@ export type Database = {
           randomize_questions?: boolean;
           start_time?: string | null;
           end_time?: string | null;
+          passing_score?: number;
+          checkbox_options_count?: number;
+          max_attempts?: number;
+          show_results?: boolean;
+          show_answers_analysis?: boolean;
+          working_hours_only?: boolean;
+          reminder_before_start?: boolean;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -87,6 +104,13 @@ export type Database = {
           randomize_questions?: boolean;
           start_time?: string | null;
           end_time?: string | null;
+          passing_score?: number;
+          checkbox_options_count?: number;
+          max_attempts?: number;
+          show_results?: boolean;
+          show_answers_analysis?: boolean;
+          working_hours_only?: boolean;
+          reminder_before_start?: boolean;
           created_by?: string | null;
           updated_at?: string;
         };
@@ -97,7 +121,7 @@ export type Database = {
           id: string;
           batch_id: string;
           question_text: string;
-          question_type: "multiple_choice" | "true_false";
+          question_type: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
           points: number;
           order_index: number;
           category: string | null;
@@ -108,7 +132,7 @@ export type Database = {
           id?: string;
           batch_id: string;
           question_text: string;
-          question_type?: "multiple_choice" | "true_false";
+          question_type?: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
           points?: number;
           order_index?: number;
           category?: string | null;
@@ -119,7 +143,7 @@ export type Database = {
           id?: string;
           batch_id?: string;
           question_text?: string;
-          question_type?: "multiple_choice" | "true_false";
+          question_type?: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
           points?: number;
           order_index?: number;
           category?: string | null;
@@ -141,7 +165,7 @@ export type Database = {
           question_id: string;
           option_text: string;
           is_correct: boolean;
-          option_label: "A" | "B" | "C" | "D";
+          option_label: string;
           created_at: string;
         };
         Insert: {
@@ -149,7 +173,7 @@ export type Database = {
           question_id: string;
           option_text: string;
           is_correct?: boolean;
-          option_label?: "A" | "B" | "C" | "D";
+          option_label?: string;
           created_at?: string;
         };
         Update: {
@@ -157,7 +181,7 @@ export type Database = {
           question_id?: string;
           option_text?: string;
           is_correct?: boolean;
-          option_label?: "A" | "B" | "C" | "D";
+          option_label?: string;
         };
         Relationships: [
           {
@@ -181,6 +205,12 @@ export type Database = {
           xp_earned: number;
           streak_count: number;
           time_taken_seconds: number;
+          essay_text: string | null;
+          selected_option_ids: string[] | null;
+          essay_graded: boolean;
+          graded_score: number | null;
+          graded_by: string | null;
+          graded_at: string | null;
           answered_at: string;
         };
         Insert: {
@@ -194,6 +224,12 @@ export type Database = {
           xp_earned?: number;
           streak_count?: number;
           time_taken_seconds?: number;
+          essay_text?: string | null;
+          selected_option_ids?: string[] | null;
+          essay_graded?: boolean;
+          graded_score?: number | null;
+          graded_by?: string | null;
+          graded_at?: string | null;
           answered_at?: string;
         };
         Update: {
@@ -207,6 +243,12 @@ export type Database = {
           xp_earned?: number;
           streak_count?: number;
           time_taken_seconds?: number;
+          essay_text?: string | null;
+          selected_option_ids?: string[] | null;
+          essay_graded?: boolean;
+          graded_score?: number | null;
+          graded_by?: string | null;
+          graded_at?: string | null;
         };
         Relationships: [
           {
@@ -249,6 +291,8 @@ export type Database = {
           total_xp: number;
           max_streak: number;
           question_order: string[] | null;
+          attempt_number: number;
+          is_leaderboard_eligible: boolean;
           started_at: string;
           finished_at: string | null;
         };
@@ -261,6 +305,8 @@ export type Database = {
           total_xp?: number;
           max_streak?: number;
           question_order?: string[] | null;
+          attempt_number?: number;
+          is_leaderboard_eligible?: boolean;
           started_at?: string;
           finished_at?: string | null;
         };
@@ -273,6 +319,8 @@ export type Database = {
           total_xp?: number;
           max_streak?: number;
           question_order?: string[] | null;
+          attempt_number?: number;
+          is_leaderboard_eligible?: boolean;
           finished_at?: string | null;
         };
         Relationships: [
@@ -291,6 +339,130 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      question_archives: {
+        Row: {
+          id: string;
+          name: string;
+          description: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          description?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          description?: string | null;
+        };
+        Relationships: [];
+      };
+      archive_questions: {
+        Row: {
+          id: string;
+          archive_id: string;
+          question_text: string;
+          question_type: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
+          category: string | null;
+          difficulty: "easy" | "medium" | "hard" | "very_hard";
+          default_points: number;
+          order_index: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          archive_id: string;
+          question_text: string;
+          question_type?: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
+          category?: string | null;
+          difficulty?: "easy" | "medium" | "hard" | "very_hard";
+          default_points?: number;
+          order_index?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          archive_id?: string;
+          question_text?: string;
+          question_type?: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
+          category?: string | null;
+          difficulty?: "easy" | "medium" | "hard" | "very_hard";
+          default_points?: number;
+          order_index?: number;
+        };
+        Relationships: [];
+      };
+      archive_options: {
+        Row: {
+          id: string;
+          question_id: string;
+          option_text: string;
+          option_label: string;
+          is_correct: boolean;
+        };
+        Insert: {
+          id?: string;
+          question_id: string;
+          option_text: string;
+          option_label: string;
+          is_correct?: boolean;
+        };
+        Update: {
+          id?: string;
+          question_id?: string;
+          option_text?: string;
+          option_label?: string;
+          is_correct?: boolean;
+        };
+        Relationships: [];
+      };
+      batch_archives: {
+        Row: {
+          id: string;
+          batch_id: string;
+          archive_id: string;
+        };
+        Insert: {
+          id?: string;
+          batch_id: string;
+          archive_id: string;
+        };
+        Update: {
+          id?: string;
+          batch_id?: string;
+          archive_id?: string;
+        };
+        Relationships: [];
+      };
+      batch_question_settings: {
+        Row: {
+          id: string;
+          batch_id: string;
+          question_type: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
+          count: number;
+          points_per_question: number;
+          include_difficulties: string[];
+        };
+        Insert: {
+          id?: string;
+          batch_id: string;
+          question_type: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
+          count?: number;
+          points_per_question?: number;
+          include_difficulties?: string[];
+        };
+        Update: {
+          id?: string;
+          batch_id?: string;
+          question_type?: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
+          count?: number;
+          points_per_question?: number;
+          include_difficulties?: string[];
+        };
+        Relationships: [];
       };
       batch_participants: {
         Row: {
@@ -360,5 +532,11 @@ export type Option = Database["public"]["Tables"]["options"]["Row"];
 export type Answer = Database["public"]["Tables"]["answers"]["Row"];
 export type ExamSession = Database["public"]["Tables"]["exam_sessions"]["Row"];
 export type BatchParticipant = Database["public"]["Tables"]["batch_participants"]["Row"];
+export type QuestionArchive = Database["public"]["Tables"]["question_archives"]["Row"];
+export type ArchiveQuestion = Database["public"]["Tables"]["archive_questions"]["Row"];
+export type ArchiveOption = Database["public"]["Tables"]["archive_options"]["Row"];
+export type BatchArchive = Database["public"]["Tables"]["batch_archives"]["Row"];
+export type BatchQuestionSetting = Database["public"]["Tables"]["batch_question_settings"]["Row"];
 
 export type QuestionWithOptions = Question & { options: Option[] };
+export type ArchiveQuestionWithOptions = ArchiveQuestion & { archive_options: ArchiveOption[] };
