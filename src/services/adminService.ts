@@ -249,7 +249,7 @@ export async function getParticipants(): Promise<Participant[]> {
 export async function createParticipant(participant: {
   name: string;
   nik: string;
-  role?: "participant" | "admin";
+  role?: "participant" | "supervisor" | "admin";
 }) {
   const res = await fetch("/api/auth/register", {
     method: "POST",
@@ -268,7 +268,7 @@ export async function createParticipant(participant: {
 export async function updateParticipant(id: string, updates: {
   name?: string;
   nik?: string;
-  role?: "participant" | "admin";
+  role?: "participant" | "supervisor" | "admin";
 }) {
   const { data, error } = await supabase
     .from("participants")
