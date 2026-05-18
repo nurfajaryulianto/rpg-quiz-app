@@ -355,7 +355,7 @@ export default function BatchesPage() {
         </div>
         <button
           onClick={() => {
-            reset({ name: "", description: "", time_limit_seconds: 60 });
+            reset({ name: "", description: "", duration_minutes: 60 });
             setEditingId(null);
             setShowForm(!showForm);
           }}
