@@ -94,12 +94,12 @@ export async function getQuestionsByBatch(batchId: string) {
 
 export async function createQuestion(batchId: string, question: {
   question_text: string;
-  question_type?: "multiple_choice" | "true_false";
+  question_type?: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
   category?: string | null;
   difficulty?: "easy" | "medium" | "hard";
   points: number;
   order_index: number;
-  options: { option_text: string; option_label: "A" | "B" | "C" | "D"; is_correct: boolean }[];
+  options: { option_text: string; option_label: string; is_correct: boolean }[];
 }) {
   const { data: questionData, error: qError } = await supabase
     .from("questions")
@@ -132,11 +132,11 @@ export async function createQuestion(batchId: string, question: {
 
 export async function updateQuestion(questionId: string, updates: {
   question_text?: string;
-  question_type?: "multiple_choice" | "true_false";
+  question_type?: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
   category?: string | null;
   difficulty?: "easy" | "medium" | "hard";
   points?: number;
-  options?: { id?: string; option_text: string; option_label: "A" | "B" | "C" | "D"; is_correct: boolean }[];
+  options?: { id?: string; option_text: string; option_label: string; is_correct: boolean }[];
 }) {
   const fieldUpdates: Record<string, unknown> = {};
   if (updates.question_text !== undefined) fieldUpdates.question_text = updates.question_text;
@@ -250,6 +250,7 @@ export async function createParticipant(participant: {
   name: string;
   nik: string;
   role?: "participant" | "supervisor" | "admin";
+  area?: string | null;
 }) {
   const res = await fetch("/api/auth/register", {
     method: "POST",
@@ -262,6 +263,15 @@ export async function createParticipant(participant: {
     const failedMsg = result.results?.find((r: { success: boolean; error?: string }) => !r.success)?.error;
     throw new Error(failedMsg ?? result.message ?? "Failed to create participant");
   }
+
+  // Register API always creates with role: "participant". Update role/area if different.
+  if ((participant.role && participant.role !== "participant") || participant.area) {
+    const updates: { role?: string; area?: string | null } = {};
+    if (participant.role && participant.role !== "participant") updates.role = participant.role;
+    if (participant.area !== undefined) updates.area = participant.area;
+    await supabase.from("participants").update(updates).eq("nik", participant.nik);
+  }
+
   return result;
 }
 
@@ -269,6 +279,7 @@ export async function updateParticipant(id: string, updates: {
   name?: string;
   nik?: string;
   role?: "participant" | "supervisor" | "admin";
+  area?: string | null;
 }) {
   const { data, error } = await supabase
     .from("participants")
