@@ -22,9 +22,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
       router.push("/login");
       return;
     }
-    // Redirect to character creation if participant has no avatar config
-    if (participant && !participant.avatar_config && pathname !== "/create-character") {
-      router.push("/create-character");
+    // Character creation temporarily disabled — redirect away if someone lands on it
+    if (pathname === "/create-character") {
+      router.push("/");
     }
   }, [user, participant, isInitialized, router, pathname]);
 
