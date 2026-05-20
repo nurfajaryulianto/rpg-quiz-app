@@ -12,17 +12,49 @@ function LeaderboardPage() {
   const { participant } = useAuthStore();
   const [players, setPlayers] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    getLeaderboard(100)
-      .then(setPlayers)
+    setLoading(true);
+    setError(null);
+
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Koneksi lambat — database mungkin sedang bangun dari mode tidur. Klik Coba Lagi.")),
+        15000
+      )
+    );
+
+    Promise.race([getLeaderboard(100), timeout])
+      .then((data) => setPlayers(data as LeaderboardEntry[]))
+      .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [retryCount]);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner text="Loading rankings..." />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-6 text-center px-6">
+        <MaterialIcon name="wifi_off" className="text-6xl text-outline-variant" />
+        <div className="max-w-sm">
+          <p className="font-bold text-on-surface text-lg mb-2">Gagal Memuat Leaderboard</p>
+          <p className="text-on-surface-variant text-sm">{error}</p>
+        </div>
+        <button
+          onClick={() => setRetryCount((c: number) => c + 1)}
+          className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-full font-bold hover:bg-primary/90 transition-colors"
+        >
+          <MaterialIcon name="refresh" />
+          Coba Lagi
+        </button>
       </div>
     );
   }

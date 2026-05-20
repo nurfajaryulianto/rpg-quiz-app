@@ -35,9 +35,9 @@ export default function MobileNav() {
       { href: "/inventory", id: "inventory", icon: "backpack", label: "Items" },
     ] : []),
 
-    // Character — participant and supervisor
+    // Account/Profile — participant and supervisor (admins can use the admin panel)
     ...(!isAdmin ? [
-      { href: "/character", id: "character", icon: "person", label: "Profile" },
+      { href: "/profile", id: "profile", icon: "manage_accounts", label: "Account" },
     ] : []),
   ];
 

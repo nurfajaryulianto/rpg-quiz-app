@@ -18,7 +18,7 @@ const navItems = [
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { participant } = useAuthStore();
+  const { participant, logout } = useAuthStore();
 
   const levelTitle = participant ? getLevelTitle(participant.level) : "Novice";
 
@@ -27,14 +27,30 @@ export default function Sidebar() {
     return pathname.startsWith(href);
   };
 
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
+
   return (
     <aside className="fixed left-0 top-0 h-full flex-col py-8 z-40 bg-rose-50 dark:bg-pink-950 w-64 rounded-r-[3rem] overflow-hidden shadow-xl shadow-rose-200/50 hidden lg:flex">
       <div className="mt-20 px-6 mb-8">
-        <div className="flex items-center gap-4 mb-6 p-4 bg-white/50 rounded-xl">
-          <div className="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center">
-            <MaterialIcon name="shield_person" className="text-white" fill />
+        <button
+          onClick={() => router.push("/profile")}
+          className={`flex items-center gap-4 mb-6 p-4 rounded-xl w-full text-left transition-colors ${
+            isActive("/profile")
+              ? "bg-white/90 border-2 border-primary/30 shadow-sm"
+              : "bg-white/50 hover:bg-white/80"
+          }`}
+        >
+          <div className="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center overflow-hidden flex-shrink-0">
+            {participant?.avatar_url ? (
+              <img src={participant.avatar_url} alt="avatar" className="w-full h-full object-cover" />
+            ) : (
+              <MaterialIcon name="shield_person" className="text-white" fill />
+            )}
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="font-bold text-on-surface leading-none truncate max-w-[140px]">
               {participant?.name ?? "Hero"}
             </p>
@@ -42,7 +58,7 @@ export default function Sidebar() {
               Level {participant?.level ?? 1} {levelTitle}
             </p>
           </div>
-        </div>
+        </button>
       </div>
 
       <nav className="flex-1 space-y-1">
@@ -68,7 +84,15 @@ export default function Sidebar() {
           ))}
       </nav>
 
-      <div className="px-4 mt-auto pb-4" />
+      <div className="px-4 mt-auto pb-6">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-full text-rose-400 hover:text-rose-600 hover:bg-rose-100 transition-colors text-sm font-semibold"
+        >
+          <MaterialIcon name="logout" className="text-base" />
+          Logout
+        </button>
+      </div>
     </aside>
   );
 }
