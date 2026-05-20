@@ -1095,7 +1095,7 @@ export async function generateBatchQuestionsFromArchives(
 // Count available questions per type from selected archives (for UI feedback)
 export async function countArchiveQuestionsByType(
   archiveIds: string[],
-  difficulties: string[]
+  difficulties: ("easy" | "medium" | "hard" | "very_hard")[]
 ): Promise<Record<string, number>> {
   if (archiveIds.length === 0) return {};
   const { data, error } = await supabase

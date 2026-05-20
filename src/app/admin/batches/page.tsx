@@ -205,9 +205,9 @@ export default function BatchesPage() {
       });
       setQuestionSettings(merged);
       // Load available counts
-      const allDiffs = ["easy","medium","hard","very_hard"];
+      const allDiffs = ["easy","medium","hard","very_hard"] as const;
       if (archiveIds.length > 0) {
-        countArchiveQuestionsByType(archiveIds, allDiffs).then(setAvailableCounts);
+        countArchiveQuestionsByType(archiveIds, [...allDiffs]).then(setAvailableCounts);
       }
     });
 
@@ -218,8 +218,8 @@ export default function BatchesPage() {
     setSelectedArchiveIds((prev) => {
       const next = prev.includes(archiveId) ? prev.filter((id) => id !== archiveId) : [...prev, archiveId];
       // Refresh available counts for selected difficulties
-      const allDiffs = ["easy","medium","hard","very_hard"];
-      if (next.length > 0) countArchiveQuestionsByType(next, allDiffs).then(setAvailableCounts);
+      const allDiffs = ["easy","medium","hard","very_hard"] as const;
+      if (next.length > 0) countArchiveQuestionsByType(next, [...allDiffs]).then(setAvailableCounts);
       else setAvailableCounts({});
       return next;
     });
