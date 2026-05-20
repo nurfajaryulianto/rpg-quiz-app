@@ -9,9 +9,9 @@ export async function POST(req: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
 
     // Support single or bulk
-    const participants: { name: string; nik: string }[] = Array.isArray(body.participants)
+    const participants: { name: string; nik: string; role?: string; area?: string | null }[] = Array.isArray(body.participants)
       ? body.participants
-      : [{ name: body.name, nik: body.nik }];
+      : [{ name: body.name, nik: body.nik, role: body.role, area: body.area }];
 
     const results: { name: string; nik: string; success: boolean; error?: string }[] = [];
 
@@ -60,7 +60,8 @@ export async function POST(req: NextRequest) {
                 name: p.name,
                 email,
                 nik: p.nik,
-                role: "participant",
+                role: (p.role as "participant" | "supervisor" | "admin") ?? "participant",
+                area: p.area ?? null,
               });
             if (partError) {
               results.push({ name: p.name, nik: p.nik, success: false, error: partError.message });
@@ -82,7 +83,8 @@ export async function POST(req: NextRequest) {
           name: p.name,
           email,
           nik: p.nik,
-          role: "participant",
+          role: (p.role as "participant" | "supervisor" | "admin") ?? "participant",
+          area: p.area ?? null,
         });
 
       if (partError) {

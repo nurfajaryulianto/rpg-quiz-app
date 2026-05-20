@@ -255,21 +255,18 @@ export async function createParticipant(participant: {
   const res = await fetch("/api/auth/register", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: participant.name, nik: participant.nik }),
+    body: JSON.stringify({
+      name: participant.name,
+      nik: participant.nik,
+      role: participant.role ?? "participant",
+      area: participant.area ?? null,
+    }),
   });
 
   const result = await res.json();
   if (!result.success) {
     const failedMsg = result.results?.find((r: { success: boolean; error?: string }) => !r.success)?.error;
     throw new Error(failedMsg ?? result.message ?? "Failed to create participant");
-  }
-
-  // Register API always creates with role: "participant". Update role/area if different.
-  if ((participant.role && participant.role !== "participant") || participant.area) {
-    const updates: { role?: "participant" | "supervisor" | "admin"; area?: string | null } = {};
-    if (participant.role && participant.role !== "participant") updates.role = participant.role;
-    if (participant.area !== undefined) updates.area = participant.area;
-    await supabase.from("participants").update(updates).eq("nik", participant.nik);
   }
 
   return result;

@@ -34,15 +34,8 @@ export default function SupervisorPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const loadTasks = useCallback(async () => {
-    if (!participant?.area) {
-      setTasks([]);
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     try {
-      // Fetch ungraded essay answers where participant.area matches supervisor's area
       const { data, error } = await supabase
         .from("answers")
         .select(`
@@ -57,17 +50,20 @@ export default function SupervisorPage() {
           participants (name, area),
           batches (name)
         `)
-        .eq("questions.question_type", "essay")
         .not("essay_text", "is", null);
 
       if (error) throw error;
 
-      // Filter to this supervisor's area and build flat task list
+      // If supervisor has an area, filter to only their area. Admin (no area) sees all.
       const flat: EssayTask[] = ((data as unknown[]) ?? [])
         .filter((row: unknown) => {
           const r = row as Record<string, unknown>;
-          const p = r.participants as Record<string, unknown> | null;
-          return p?.area === participant.area && r.essay_text;
+          if (!r.essay_text) return false;
+          if (participant?.area) {
+            const p = r.participants as Record<string, unknown> | null;
+            return p?.area === participant.area;
+          }
+          return true;
         })
         .map((row: unknown) => {
           const r = row as Record<string, unknown>;
@@ -106,8 +102,6 @@ export default function SupervisorPage() {
 
   // Realtime subscription for live grading updates
   useEffect(() => {
-    if (!participant?.area) return;
-
     const channel = supabase
       .channel("supervisor-essay-updates")
       .on(
@@ -122,7 +116,7 @@ export default function SupervisorPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [participant?.area, loadTasks]);
+  }, [loadTasks]);
 
   const handleGrade = async (answerId: string, maxPoints: number) => {
     const raw = scoreInputs[answerId];
