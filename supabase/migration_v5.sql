@@ -11,13 +11,13 @@ VALUES ('avatars', 'avatars', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Allow authenticated users to upload/replace their own avatar
--- (file path must start with their user UUID)
+-- Files are stored flat: "{user_id}.{ext}" (e.g. "uuid.jpg")
 CREATE POLICY "Users can upload own avatar"
 ON storage.objects FOR INSERT
 TO authenticated
 WITH CHECK (
   bucket_id = 'avatars'
-  AND (storage.foldername(name))[1] = auth.uid()::text
+  AND name LIKE (auth.uid()::text || '.%')
 );
 
 -- Allow anyone to read avatars (public bucket)
@@ -31,7 +31,7 @@ ON storage.objects FOR UPDATE
 TO authenticated
 USING (
   bucket_id = 'avatars'
-  AND (storage.foldername(name))[1] = auth.uid()::text
+  AND name LIKE (auth.uid()::text || '.%')
 );
 
 -- Allow users to delete their own avatar
@@ -40,19 +40,12 @@ ON storage.objects FOR DELETE
 TO authenticated
 USING (
   bucket_id = 'avatars'
-  AND (storage.foldername(name))[1] = auth.uid()::text
+  AND name LIKE (auth.uid()::text || '.%')
 );
 
 -- =====================================================================
--- NOTE: The profile page uploads files as: {user_id}.{ext}
+-- NOTE: Files are stored as: {user_id}.{ext} (flat, no subfolder)
 -- e.g. "550e8400-e29b-41d4-a716-446655440000.jpg"
--- The RLS policy above uses storage.foldername which checks path prefix.
--- Since there's no subfolder here, adjust the policy if needed:
--- Use: name LIKE (auth.uid()::text || '%') for flat file structure.
+-- The LIKE check ensures each user can only manage their own file.
+-- If you already ran the broken v5 policies, run migration_v6.sql instead.
 -- =====================================================================
-
--- Alternative simpler RLS (if foldername doesn't work for flat paths):
--- DROP POLICY "Users can upload own avatar" ON storage.objects;
--- CREATE POLICY "Users can upload own avatar"
--- ON storage.objects FOR INSERT TO authenticated
--- WITH CHECK (bucket_id = 'avatars' AND name LIKE (auth.uid()::text || '%'));

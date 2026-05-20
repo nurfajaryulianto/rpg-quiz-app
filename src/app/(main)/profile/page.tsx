@@ -12,6 +12,7 @@ export default function ProfilePage() {
   const { participant, user, logout, setParticipant } = useAuthStore();
 
   // Password change
+  const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [pwLoading, setPwLoading] = useState(false);
@@ -27,19 +28,42 @@ export default function ProfilePage() {
 
   const handleChangePassword = async () => {
     setPwMsg(null);
+    if (!currentPw) {
+      setPwMsg({ type: "err", text: "Masukkan password saat ini terlebih dahulu." });
+      return;
+    }
     if (!newPw || newPw.length < 6) {
-      setPwMsg({ type: "err", text: "Password minimal 6 karakter." });
+      setPwMsg({ type: "err", text: "Password baru minimal 6 karakter." });
       return;
     }
     if (newPw !== confirmPw) {
       setPwMsg({ type: "err", text: "Konfirmasi password tidak cocok." });
       return;
     }
+    if (currentPw === newPw) {
+      setPwMsg({ type: "err", text: "Password baru harus berbeda dari password saat ini." });
+      return;
+    }
+    if (!user?.email) {
+      setPwMsg({ type: "err", text: "Tidak dapat memverifikasi akun. Silakan login ulang." });
+      return;
+    }
     setPwLoading(true);
     try {
+      // Supabase requires a fresh session before password update (Secure Password Change).
+      // Re-authenticate with current credentials first.
+      const { error: reAuthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPw,
+      });
+      if (reAuthError) {
+        setPwMsg({ type: "err", text: "Password saat ini salah." });
+        return;
+      }
       const { error } = await supabase.auth.updateUser({ password: newPw });
       if (error) throw error;
       setPwMsg({ type: "ok", text: "Password berhasil diperbarui." });
+      setCurrentPw("");
       setNewPw("");
       setConfirmPw("");
     } catch (e) {
@@ -180,6 +204,13 @@ export default function ProfilePage() {
           Ganti Password
         </h2>
         <div className="space-y-3">
+          <input
+            type="password"
+            placeholder="Password saat ini"
+            value={currentPw}
+            onChange={(e) => setCurrentPw(e.target.value)}
+            className="w-full px-4 py-3 rounded-2xl border border-outline-variant/30 bg-surface-container-low text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+          />
           <input
             type="password"
             placeholder="Password baru (min 6 karakter)"
