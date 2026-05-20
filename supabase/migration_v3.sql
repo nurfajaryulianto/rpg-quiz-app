@@ -72,9 +72,15 @@ ALTER TABLE public.exam_sessions
   DROP CONSTRAINT IF EXISTS exam_sessions_participant_id_batch_id_key;
 
 -- New constraint: unique per participant + batch + attempt number
-ALTER TABLE public.exam_sessions
-  ADD CONSTRAINT exam_sessions_participant_batch_attempt_key
-    UNIQUE(participant_id, batch_id, attempt_number);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'exam_sessions_participant_batch_attempt_key'
+  ) THEN
+    ALTER TABLE public.exam_sessions
+      ADD CONSTRAINT exam_sessions_participant_batch_attempt_key
+        UNIQUE(participant_id, batch_id, attempt_number);
+  END IF;
+END $$;
 
 -- ----------------------------------------
 -- 7. INDEXES

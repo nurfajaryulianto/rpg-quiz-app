@@ -12,36 +12,52 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Allow authenticated users to upload/replace their own avatar
 -- Files are stored flat: "{user_id}.{ext}" (e.g. "uuid.jpg")
-CREATE POLICY "Users can upload own avatar"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (
-  bucket_id = 'avatars'
-  AND name LIKE (auth.uid()::text || '.%')
-);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Users can upload own avatar') THEN
+    CREATE POLICY "Users can upload own avatar"
+    ON storage.objects FOR INSERT
+    TO authenticated
+    WITH CHECK (
+      bucket_id = 'avatars'
+      AND name LIKE (auth.uid()::text || '.%')
+    );
+  END IF;
+END $$;
 
 -- Allow anyone to read avatars (public bucket)
-CREATE POLICY "Avatars are publicly readable"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'avatars');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Avatars are publicly readable') THEN
+    CREATE POLICY "Avatars are publicly readable"
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'avatars');
+  END IF;
+END $$;
 
 -- Allow users to update their own avatar
-CREATE POLICY "Users can update own avatar"
-ON storage.objects FOR UPDATE
-TO authenticated
-USING (
-  bucket_id = 'avatars'
-  AND name LIKE (auth.uid()::text || '.%')
-);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Users can update own avatar') THEN
+    CREATE POLICY "Users can update own avatar"
+    ON storage.objects FOR UPDATE
+    TO authenticated
+    USING (
+      bucket_id = 'avatars'
+      AND name LIKE (auth.uid()::text || '.%')
+    );
+  END IF;
+END $$;
 
 -- Allow users to delete their own avatar
-CREATE POLICY "Users can delete own avatar"
-ON storage.objects FOR DELETE
-TO authenticated
-USING (
-  bucket_id = 'avatars'
-  AND name LIKE (auth.uid()::text || '.%')
-);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Users can delete own avatar') THEN
+    CREATE POLICY "Users can delete own avatar"
+    ON storage.objects FOR DELETE
+    TO authenticated
+    USING (
+      bucket_id = 'avatars'
+      AND name LIKE (auth.uid()::text || '.%')
+    );
+  END IF;
+END $$;
 
 -- =====================================================================
 -- NOTE: Files are stored as: {user_id}.{ext} (flat, no subfolder)
