@@ -278,15 +278,14 @@ export async function updateParticipant(id: string, updates: {
   role?: "participant" | "supervisor" | "admin";
   area?: string | null;
 }) {
-  const { data, error } = await supabase
-    .from("participants")
-    .update(updates)
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
+  const res = await fetch("/api/admin/update-participant", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, updates }),
+  });
+  const result = await res.json();
+  if (!result.success) throw new Error(result.message ?? "Failed to update participant");
+  return result.data;
 }
 
 export async function resetParticipantProgress(id: string) {
