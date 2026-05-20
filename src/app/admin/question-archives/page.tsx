@@ -138,6 +138,7 @@ export default function QuestionArchivesPage() {
     archiveForm.setValue("name", a.name);
     archiveForm.setValue("description", a.description ?? "");
     setShowArchiveForm(true);
+    setSelectedArchive(a);
   };
 
   const handleDeleteArchive = async (a: QuestionArchive) => {
@@ -317,6 +318,7 @@ export default function QuestionArchivesPage() {
                         ? "bg-primary-container text-on-primary-container"
                         : "hover:bg-surface-container-low text-on-surface"
                     }`}
+                    title="Klik untuk kelola soal"
                   >
                     <div className="flex-1 min-w-0 mr-2">
                       <p className="font-bold text-sm truncate">{a.name}</p>
@@ -344,7 +346,8 @@ export default function QuestionArchivesPage() {
           {!selectedArchive ? (
             <div className="bg-white rounded-xl bubbly-shadow p-10 text-center">
               <MaterialIcon name="library_books" className="text-5xl text-outline-variant mb-3" />
-              <p className="text-on-surface-variant">Pilih bank soal di sebelah kiri untuk mengelola soal-soalnya</p>
+              <p className="text-on-surface font-bold mb-1">Pilih bank soal terlebih dahulu</p>
+              <p className="text-on-surface-variant text-sm">Klik nama bank soal di sebelah kiri untuk mulai menambah &amp; mengelola soal-soalnya</p>
             </div>
           ) : (
             <>
