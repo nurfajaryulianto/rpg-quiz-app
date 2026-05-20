@@ -47,7 +47,7 @@ export default function SupervisorPage() {
           participant_id,
           batch_id,
           questions (question_text, points),
-          participants (name, area),
+          participants!participant_id (name, area),
           batches (name)
         `)
         .not("essay_text", "is", null);

@@ -82,13 +82,12 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
           <div className="absolute inset-0 bg-gradient-to-b from-surface/90 via-surface/60 to-surface" />
         </div>
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           <motion.div
             key={pathname}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.15 }}
             className="relative z-10"
           >
             {children}
