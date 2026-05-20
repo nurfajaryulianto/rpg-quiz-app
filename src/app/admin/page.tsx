@@ -4,39 +4,58 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import MaterialIcon from "@/components/MaterialIcon";
-import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { getAdminStats, getRecentActivity } from "@/services/adminService";
 import type { ExamSession } from "@/lib/database.types";
 
 type ActivityItem = ExamSession & { participant_name?: string; batch_name?: string };
 
+function StatSkeleton() {
+  return (
+    <div className="bg-white/80 p-8 rounded-xl bubbly-shadow border border-white/40 animate-pulse">
+      <div className="h-3 w-24 bg-surface-container-high rounded mb-3" />
+      <div className="h-10 w-16 bg-surface-container-high rounded mb-2" />
+      <div className="h-3 w-32 bg-surface-container rounded" />
+    </div>
+  );
+}
+
+function ActivitySkeleton() {
+  return (
+    <>
+      {Array.from({ length: 4 }).map((_, i) => (
+        <tr key={i} className="animate-pulse">
+          <td className="px-6 py-4"><div className="h-4 w-28 bg-surface-container rounded" /></td>
+          <td className="px-6 py-4"><div className="h-4 w-20 bg-surface-container rounded" /></td>
+          <td className="px-6 py-4"><div className="h-4 w-12 bg-surface-container rounded" /></td>
+          <td className="px-6 py-4 text-right"><div className="h-5 w-16 bg-surface-container rounded-full ml-auto" /></td>
+        </tr>
+      ))}
+    </>
+  );
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
-  const [stats, setStats] = useState({
-    totalBatches: 0,
-    totalParticipants: 0,
-    totalQuestions: 0,
-    activeBatches: 0,
-    completedExams: 0,
-  });
-  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<{
+    totalBatches: number;
+    totalParticipants: number;
+    totalQuestions: number;
+    activeBatches: number;
+    completedExams: number;
+  } | null>(null);
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[] | null>(null);
 
   useEffect(() => {
-    Promise.all([getAdminStats(), getRecentActivity()])
-      .then(([s, a]) => {
-        setStats(s);
-        setRecentActivity(a);
-      })
-      .finally(() => setLoading(false));
+    getAdminStats().then(setStats).catch(() => setStats({
+      totalBatches: 0, totalParticipants: 0, totalQuestions: 0, activeBatches: 0, completedExams: 0,
+    }));
+    getRecentActivity().then(setRecentActivity).catch(() => setRecentActivity([]));
   }, []);
-
-  if (loading) return <LoadingSpinner text="Loading dashboard..." />;
 
   const statCards = [
     { label: "Total XP Distributed", value: "-", icon: "trending_up", color: "primary" },
-    { label: "Active Heroes", value: stats.totalParticipants.toString(), icon: "groups", color: "secondary", sub: `${stats.activeBatches} active batches` },
-    { label: "Quests Available", value: stats.totalBatches.toString(), icon: "quiz", color: "tertiary", sub: `${stats.totalQuestions} total questions` },
+    { label: "Active Heroes", value: stats ? stats.totalParticipants.toString() : null, icon: "groups", color: "secondary", sub: stats ? `${stats.activeBatches} active batches` : null },
+    { label: "Quests Available", value: stats ? stats.totalBatches.toString() : null, icon: "quiz", color: "tertiary", sub: stats ? `${stats.totalQuestions} total questions` : null },
   ];
 
   return (
@@ -64,7 +83,9 @@ export default function AdminDashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        {statCards.map((stat, i) => (
+        {stats === null
+          ? Array.from({ length: 3 }).map((_, i) => <StatSkeleton key={i} />)
+          : statCards.map((stat, i) => (
           <div
             key={i}
             className="bg-white/80 p-8 rounded-xl bubbly-shadow border border-white/40 relative overflow-hidden group"
@@ -101,7 +122,23 @@ export default function AdminDashboard() {
           </div>
 
           <div className="bg-surface-container-lowest rounded-xl bubbly-shadow overflow-hidden">
-            {recentActivity.length === 0 ? (
+            {recentActivity === null ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-surface-container-low">
+                    <tr>
+                      <th className="px-6 py-4 text-on-surface-variant font-bold text-sm uppercase">Hero</th>
+                      <th className="px-6 py-4 text-on-surface-variant font-bold text-sm uppercase">Quest</th>
+                      <th className="px-6 py-4 text-on-surface-variant font-bold text-sm uppercase">Score</th>
+                      <th className="px-6 py-4 text-on-surface-variant font-bold text-sm uppercase text-right">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-container">
+                    <ActivitySkeleton />
+                  </tbody>
+                </table>
+              </div>
+            ) : recentActivity.length === 0 ? (
               <div className="p-8 text-center text-on-surface-variant">No activity yet</div>
             ) : (
               <>
@@ -160,10 +197,10 @@ export default function AdminDashboard() {
 
           <div className="space-y-4">
             {[
-              { label: "Manage Batches", desc: `${stats.totalBatches} batches created`, icon: "quiz", href: "/admin/batches" },
-              { label: "Manage Questions", desc: `${stats.totalQuestions} questions total`, icon: "help_outline", href: "/admin/questions" },
-              { label: "Manage Participants", desc: `${stats.totalParticipants} heroes`, icon: "groups", href: "/admin/participants" },
-              { label: "View Results", desc: `${stats.completedExams} exams completed`, icon: "analytics", href: "/admin/results" },
+              { label: "Manage Batches", desc: stats ? `${stats.totalBatches} batches created` : "Loading...", icon: "quiz", href: "/admin/batches" },
+              { label: "Manage Questions", desc: stats ? `${stats.totalQuestions} questions total` : "Loading...", icon: "help_outline", href: "/admin/questions" },
+              { label: "Manage Participants", desc: stats ? `${stats.totalParticipants} heroes` : "Loading...", icon: "groups", href: "/admin/participants" },
+              { label: "View Results", desc: stats ? `${stats.completedExams} exams completed` : "Loading...", icon: "analytics", href: "/admin/results" },
             ].map((action) => (
               <button
                 key={action.href}
