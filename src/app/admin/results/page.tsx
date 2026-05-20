@@ -11,6 +11,7 @@ import {
   resetBatchResults,
   getBatchExportData,
   getParticipantAnswers,
+  exportBatchToGoogleSheets,
 } from "@/services/adminService";
 import type { Batch, ExamSession } from "@/lib/database.types";
 import type { ParticipantAnswerDetail } from "@/services/adminService";
@@ -28,6 +29,9 @@ export default function ResultsPage() {
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [exportingSheets, setExportingSheets] = useState(false);
+  const [sheetsSpreadsheetId, setSheetsSpreadsheetId] = useState("");
+  const [showSheetsInput, setShowSheetsInput] = useState(false);
 
   // Drill-down state
   const [drillParticipant, setDrillParticipant] = useState<SessionWithNames | null>(null);
@@ -120,6 +124,22 @@ export default function ResultsPage() {
       alert(err instanceof Error ? err.message : "Export failed");
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleExportToSheets = async () => {
+    if (!selectedBatchId) {
+      alert("Please select a batch first");
+      return;
+    }
+    setExportingSheets(true);
+    try {
+      const { url } = await exportBatchToGoogleSheets(selectedBatchId, sheetsSpreadsheetId || undefined);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Export to Sheets failed");
+    } finally {
+      setExportingSheets(false);
     }
   };
 
@@ -224,6 +244,34 @@ export default function ResultsPage() {
                 <MaterialIcon name="download" className="text-sm" />
                 {exporting ? "Exporting..." : "Export Excel"}
               </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowSheetsInput(!showSheetsInput)}
+                  disabled={exportingSheets}
+                  className="px-4 py-1.5 bg-green-100 text-green-800 text-xs font-bold rounded-lg hover:opacity-80 transition-all flex items-center gap-1 disabled:opacity-50"
+                >
+                  <MaterialIcon name="table_chart" className="text-sm" />
+                  {exportingSheets ? "Exporting..." : "Export to Sheets"}
+                </button>
+                {showSheetsInput && (
+                  <>
+                    <input
+                      type="text"
+                      value={sheetsSpreadsheetId}
+                      onChange={(e) => setSheetsSpreadsheetId(e.target.value)}
+                      placeholder="Spreadsheet ID (opsional)"
+                      className="border border-outline-variant/30 rounded-lg px-2 py-1.5 text-xs w-48 focus:border-primary focus:outline-none"
+                    />
+                    <button
+                      onClick={handleExportToSheets}
+                      disabled={exportingSheets}
+                      className="px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg hover:opacity-80 disabled:opacity-50"
+                    >
+                      {exportingSheets ? "..." : "Go"}
+                    </button>
+                  </>
+                )}
+              </div>
               <button
                 onClick={handleResetResults}
                 className="px-3 py-1.5 bg-error-container/20 text-error text-xs font-bold rounded-lg hover:bg-error-container/30 transition-colors flex items-center gap-1"

@@ -2,6 +2,10 @@
     "chat.tools.terminal.autoApprove": {
         "Set-ExecutionPolicy": true,
         "npx next": true,
-        "&": true
+        "&": true,
+        "/^Set-Location \"c:\\\\Users\\\\fajar\\.yulianto\\\\Documents\\\\ISENG\\\\rpg-quiz-app\"\nnode -e \"console\\.log\\('node ok'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

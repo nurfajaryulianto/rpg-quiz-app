@@ -251,6 +251,8 @@ export async function createParticipant(participant: {
   nik: string;
   role?: "participant" | "supervisor" | "admin";
   area?: string | null;
+  jabatan?: string | null;
+  sub_dept?: string | null;
 }) {
   const res = await fetch("/api/auth/register", {
     method: "POST",
@@ -260,6 +262,8 @@ export async function createParticipant(participant: {
       nik: participant.nik,
       role: participant.role ?? "participant",
       area: participant.area ?? null,
+      jabatan: participant.jabatan ?? null,
+      sub_dept: participant.sub_dept ?? null,
     }),
   });
 
@@ -277,6 +281,8 @@ export async function updateParticipant(id: string, updates: {
   nik?: string;
   role?: "participant" | "supervisor" | "admin";
   area?: string | null;
+  jabatan?: string | null;
+  sub_dept?: string | null;
 }) {
   const { data: { session } } = await supabase.auth.getSession();
   const res = await fetch("/api/admin/update-participant", {
@@ -330,7 +336,12 @@ export async function uploadParticipants(participants: ParsedParticipant[]) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      participants: participants.map((p) => ({ name: p.name, nik: p.nik })),
+      participants: participants.map((p) => ({
+        name: p.name,
+        nik: p.nik,
+        jabatan: p.jabatan ?? null,
+        sub_dept: p.sub_dept ?? null,
+      })),
     }),
   });
 
@@ -863,6 +874,137 @@ export async function getBatchExportData(batchId: string): Promise<ExportRow[]> 
       accuracyPercent: totalQ > 0 ? Math.round((correct / totalQ) * 100) : 0,
     };
   });
+}
+
+// ============================================
+// GOOGLE SHEETS EXPORT DATA
+// ============================================
+
+export interface SheetsExportQuestion {
+  id: string;
+  text: string;
+  correctLabel: string;
+  category: string | null;
+}
+
+export interface SheetsExportParticipantRow {
+  timestamp: string;
+  name: string;
+  nik: string;
+  jabatan: string;
+  sub_dept: string;
+  score: number;
+  answers: Record<string, string>; // questionId → option label (A/B/C/D)
+}
+
+export interface SheetsExportData {
+  batchName: string;
+  questions: SheetsExportQuestion[];
+  rows: SheetsExportParticipantRow[];
+}
+
+export async function getBatchDetailedExportData(batchId: string): Promise<SheetsExportData> {
+  // Fetch batch, questions+options, sessions, answers, participants in parallel
+  const [batchRes, questionsRes, sessionsRes] = await Promise.all([
+    supabase.from("batches").select("name").eq("id", batchId).single(),
+    supabase
+      .from("questions")
+      .select("id, question_text, category, options(option_label, is_correct)")
+      .eq("batch_id", batchId)
+      .order("order_index", { ascending: true }),
+    supabase
+      .from("exam_sessions")
+      .select("participant_id, score, finished_at, participants(name, nik, jabatan, sub_dept)")
+      .eq("batch_id", batchId)
+      .eq("status", "completed")
+      .order("score", { ascending: false }),
+  ]);
+
+  if (batchRes.error) throw batchRes.error;
+  if (questionsRes.error) throw questionsRes.error;
+  if (sessionsRes.error) throw sessionsRes.error;
+
+  const batchName = (batchRes.data as { name: string }).name;
+  const rawQuestions = (questionsRes.data ?? []) as {
+    id: string;
+    question_text: string;
+    category: string | null;
+    options: { option_label: string; is_correct: boolean }[];
+  }[];
+  const rawSessions = (sessionsRes.data ?? []) as {
+    participant_id: string;
+    score: number;
+    finished_at: string | null;
+    participants: { name: string; nik: string | null; jabatan: string | null; sub_dept: string | null } | null;
+  }[];
+
+  // Build questions list with correct label
+  const questions: SheetsExportQuestion[] = rawQuestions.map((q) => {
+    const correctOpt = q.options.find((o) => o.is_correct);
+    return {
+      id: q.id,
+      text: q.question_text,
+      correctLabel: correctOpt?.option_label ?? "?",
+      category: q.category,
+    };
+  });
+
+  if (rawSessions.length === 0) {
+    return { batchName, questions, rows: [] };
+  }
+
+  // Fetch all answers for this batch
+  const participantIds = rawSessions.map((s) => s.participant_id);
+  const { data: answersData, error: answersError } = await supabase
+    .from("answers")
+    .select("participant_id, question_id, selected_option_label")
+    .eq("batch_id", batchId)
+    .in("participant_id", participantIds);
+
+  if (answersError) throw answersError;
+
+  // Build answer map: participantId → questionId → optionLabel
+  const answerMap = new Map<string, Map<string, string>>();
+  for (const ans of answersData ?? []) {
+    const a = ans as { participant_id: string; question_id: string; selected_option_label: string | null };
+    if (!answerMap.has(a.participant_id)) answerMap.set(a.participant_id, new Map());
+    answerMap.get(a.participant_id)!.set(a.question_id, a.selected_option_label ?? "-");
+  }
+
+  const rows: SheetsExportParticipantRow[] = rawSessions.map((s) => {
+    const p = s.participants;
+    const qAnswers: Record<string, string> = {};
+    const pAnswerMap = answerMap.get(s.participant_id);
+    for (const q of questions) {
+      qAnswers[q.id] = pAnswerMap?.get(q.id) ?? "-";
+    }
+    return {
+      timestamp: s.finished_at ? new Date(s.finished_at).toLocaleString("id-ID") : "-",
+      name: p?.name ?? "-",
+      nik: p?.nik ?? "-",
+      jabatan: p?.jabatan ?? "-",
+      sub_dept: p?.sub_dept ?? "-",
+      score: s.score,
+      answers: qAnswers,
+    };
+  });
+
+  return { batchName, questions, rows };
+}
+
+export async function exportBatchToGoogleSheets(batchId: string, spreadsheetId?: string): Promise<{ url: string }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch("/api/admin/export-to-sheets", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify({ batchId, spreadsheetId }),
+  });
+  const result = await res.json();
+  if (!result.success) throw new Error(result.message ?? "Failed to export to Google Sheets");
+  return { url: result.url };
 }
 
 // ============================================

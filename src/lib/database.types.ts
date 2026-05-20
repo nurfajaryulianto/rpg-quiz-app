@@ -16,6 +16,8 @@ export type Database = {
           quizzes_taken: number;
           avatar_url: string | null;
           avatar_config: AvatarConfig | null;
+          jabatan: string | null;
+          sub_dept: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -33,6 +35,8 @@ export type Database = {
           quizzes_taken?: number;
           avatar_url?: string | null;
           avatar_config?: AvatarConfig | null;
+          jabatan?: string | null;
+          sub_dept?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -50,6 +54,8 @@ export type Database = {
           quizzes_taken?: number;
           avatar_url?: string | null;
           avatar_config?: AvatarConfig | null;
+          jabatan?: string | null;
+          sub_dept?: string | null;
           updated_at?: string;
         };
         Relationships: [];

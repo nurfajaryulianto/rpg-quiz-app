@@ -23,6 +23,8 @@ interface ParticipantForm {
   nik: string;
   role: "participant" | "supervisor" | "admin";
   area: string;
+  jabatan: string;
+  sub_dept: string;
 }
 
 export default function ParticipantsPage() {
@@ -88,6 +90,8 @@ export default function ParticipantsPage() {
           nik: data.nik,
           role: data.role,
           area: data.area?.trim() || null,
+          jabatan: data.jabatan?.trim() || null,
+          sub_dept: data.sub_dept?.trim() || null,
         });
       } else {
         await createParticipant({
@@ -95,6 +99,8 @@ export default function ParticipantsPage() {
           nik: data.nik,
           role: data.role,
           area: data.area?.trim() || null,
+          jabatan: data.jabatan?.trim() || null,
+          sub_dept: data.sub_dept?.trim() || null,
         });
       }
       reset();
@@ -114,6 +120,8 @@ export default function ParticipantsPage() {
     setValue("nik", p.nik ?? "");
     setValue("role", (p.role ?? "participant") as ParticipantForm["role"]);
     setValue("area", p.area ?? "");
+    setValue("jabatan", (p as Record<string, unknown>).jabatan as string ?? "");
+    setValue("sub_dept", (p as Record<string, unknown>).sub_dept as string ?? "");
     setShowForm(true);
   };
 
@@ -172,7 +180,7 @@ export default function ParticipantsPage() {
         </div>
         <button
           onClick={() => {
-            reset({ name: "", nik: "", role: "participant", area: "" });
+            reset({ name: "", nik: "", role: "participant", area: "", jabatan: "", sub_dept: "" });
             setEditingParticipant(null);
             setShowForm(!showForm);
           }}
@@ -239,6 +247,22 @@ export default function ParticipantsPage() {
                     placeholder="Area / Unit kerja (opsional)"
                   />
                   <p className="text-on-surface-variant text-xs mt-1">Wajib diisi untuk supervisor (digunakan untuk filter essay grading)</p>
+                </div>
+                <div>
+                  <label className="block text-on-surface-variant text-sm font-medium mb-1">Jabatan</label>
+                  <input
+                    {...register("jabatan")}
+                    className={inputClasses}
+                    placeholder="Jabatan / Posisi (opsional)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-on-surface-variant text-sm font-medium mb-1">Sub Dept</label>
+                  <input
+                    {...register("sub_dept")}
+                    className={inputClasses}
+                    placeholder="Sub Department (opsional)"
+                  />
                 </div>
               </div>
               <div className="flex gap-3">

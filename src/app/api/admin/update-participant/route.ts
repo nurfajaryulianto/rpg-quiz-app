@@ -39,6 +39,8 @@ export async function PATCH(req: NextRequest) {
         nik?: string;
         role?: "participant" | "supervisor" | "admin";
         area?: string | null;
+        jabatan?: string | null;
+        sub_dept?: string | null;
       };
     };
 

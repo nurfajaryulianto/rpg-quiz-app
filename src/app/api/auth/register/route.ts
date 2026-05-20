@@ -9,9 +9,9 @@ export async function POST(req: NextRequest) {
     const supabaseAdmin = getSupabaseAdmin();
 
     // Support single or bulk
-    const participants: { name: string; nik: string; role?: string; area?: string | null }[] = Array.isArray(body.participants)
+    const participants: { name: string; nik: string; role?: string; area?: string | null; jabatan?: string | null; sub_dept?: string | null }[] = Array.isArray(body.participants)
       ? body.participants
-      : [{ name: body.name, nik: body.nik, role: body.role, area: body.area }];
+      : [{ name: body.name, nik: body.nik, role: body.role, area: body.area, jabatan: body.jabatan, sub_dept: body.sub_dept }];
 
     const results: { name: string; nik: string; success: boolean; error?: string }[] = [];
 
@@ -61,8 +61,8 @@ export async function POST(req: NextRequest) {
                 email,
                 nik: p.nik,
                 role: (p.role as "participant" | "supervisor" | "admin") ?? "participant",
-                area: p.area ?? null,
-              });
+                area: p.area ?? null,                jabatan: p.jabatan ?? null,
+                sub_dept: p.sub_dept ?? null,              });
             if (partError) {
               results.push({ name: p.name, nik: p.nik, success: false, error: partError.message });
             } else {
@@ -85,6 +85,8 @@ export async function POST(req: NextRequest) {
           nik: p.nik,
           role: (p.role as "participant" | "supervisor" | "admin") ?? "participant",
           area: p.area ?? null,
+          jabatan: p.jabatan ?? null,
+          sub_dept: p.sub_dept ?? null,
         });
 
       if (partError) {

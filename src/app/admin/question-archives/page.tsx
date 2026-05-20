@@ -1,20 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm, useWatch } from "react-hook-form";
 import MaterialIcon from "@/components/MaterialIcon";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
-import {
-  getArchives,
-  createArchive,
-  updateArchive,
-  deleteArchive,
-  getArchiveQuestions,
-  createArchiveQuestion,
-  updateArchiveQuestion,
-  deleteArchiveQuestion,
-} from "@/services/adminService";
+import { getArchives, createArchive, updateArchive, deleteArchive, getArchiveQuestions, createArchiveQuestion, updateArchiveQuestion, deleteArchiveQuestion } from "@/services/adminService";
+import { parseArchiveQuestionsExcel } from "@/utils/excelParser";
 import type { QuestionArchive, ArchiveQuestionWithOptions } from "@/lib/database.types";
 
 type QType = "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
@@ -83,6 +75,9 @@ export default function QuestionArchivesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("");
   const [filterDiff, setFilterDiff] = useState<string>("");
+  const [uploadingExcel, setUploadingExcel] = useState(false);
+  const [uploadResult, setUploadResult] = useState<string | null>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
 
   const qForm = useForm<QuestionForm>({
     defaultValues: { question_type: "multiple_choice", difficulty: "medium", default_points: 10 },
@@ -146,6 +141,44 @@ export default function QuestionArchivesPage() {
     await deleteArchive(a.id);
     if (selectedArchive?.id === a.id) setSelectedArchive(null);
     await loadArchives();
+  };
+
+  // ---- Question CRUD ----
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedArchive) { alert("Pilih bank soal terlebih dahulu"); return; }
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingExcel(true);
+    setUploadResult(null);
+    try {
+      const buffer = await file.arrayBuffer();
+      const parsed = parseArchiveQuestionsExcel(buffer);
+      if (parsed.length === 0) { setUploadResult("Tidak ada soal yang ditemukan"); return; }
+      let success = 0;
+      let failed = 0;
+      for (const q of parsed) {
+        try {
+          await createArchiveQuestion(selectedArchive.id, {
+            question_text: q.question_text,
+            question_type: q.question_type,
+            category: q.category,
+            difficulty: q.difficulty,
+            default_points: q.default_points,
+            options: q.options,
+          });
+          success++;
+        } catch {
+          failed++;
+        }
+      }
+      setUploadResult(`Berhasil import ${success} soal${failed > 0 ? `, ${failed} gagal` : ""}`);
+      await loadQuestions(selectedArchive.id);
+    } catch (err) {
+      setUploadResult(`Error: ${err instanceof Error ? err.message : "Upload gagal"}`);
+    } finally {
+      setUploadingExcel(false);
+      if (excelInputRef.current) excelInputRef.current.value = "";
+    }
   };
 
   // ---- Question CRUD ----
@@ -358,6 +391,7 @@ export default function QuestionArchivesPage() {
                     <h2 className="font-bold text-on-surface">{selectedArchive.name}</h2>
                     <p className="text-on-surface-variant text-xs">{questions.length} soal tersedia</p>
                   </div>
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
                       setEditingQ(null);
@@ -369,6 +403,27 @@ export default function QuestionArchivesPage() {
                     <MaterialIcon name={showQForm && !editingQ ? "close" : "add_circle"} className="text-lg" />
                     {showQForm && !editingQ ? "Batal" : "Tambah Soal"}
                   </button>
+                  <label
+                    className={`px-4 py-2 bg-tertiary-container text-on-tertiary-container text-sm font-bold rounded-lg hover:opacity-80 transition-opacity flex items-center gap-2 cursor-pointer ${uploadingExcel ? "opacity-50 pointer-events-none" : ""}`}
+                    title="Import soal dari Excel (Kategori, Pertanyaan, A, B, C, D, Jawaban)"
+                  >
+                    <MaterialIcon name="upload_file" className="text-lg" />
+                    {uploadingExcel ? "Importing..." : "Import Excel"}
+                    <input
+                      ref={excelInputRef}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={handleExcelUpload}
+                      disabled={uploadingExcel}
+                    />
+                  </label>
+                </div>
+                {uploadResult && (
+                  <p className={`mt-2 text-xs font-medium ${uploadResult.startsWith("Error") ? "text-error" : "text-tertiary"}`}>
+                    {uploadResult}
+                  </p>
+                )}
                 </div>
 
                 <AnimatePresence>
