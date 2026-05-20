@@ -291,7 +291,7 @@ export default function BatchesPage() {
         getParticipants(),
         getBatchParticipants(batch.id),
       ]);
-      setAllParticipants(all.filter((p) => p.role === "participant"));
+      setAllParticipants(all.filter((p) => p.role === "participant" || p.role === "supervisor"));
       setAssignedParticipants(assigned);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to load participants");
