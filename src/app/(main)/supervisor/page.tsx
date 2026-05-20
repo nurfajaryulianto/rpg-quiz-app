@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import MaterialIcon from "@/components/MaterialIcon";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
-import AppShell from "@/components/AppShell";
 import { useAuthStore } from "@/store/authStore";
 import { gradeEssay } from "@/services/examService";
 import { supabase } from "@/lib/supabase";
@@ -148,7 +147,6 @@ export default function SupervisorPage() {
   const ungradedCount = tasks.filter((t) => !t.essay_graded).length;
 
   return (
-    <AppShell>
     <div className="max-w-4xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
@@ -274,6 +272,5 @@ export default function SupervisorPage() {
         </div>
       )}
     </div>
-    </AppShell>
   );
 }

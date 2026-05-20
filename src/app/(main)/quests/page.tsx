@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
-import AppShell from "@/components/AppShell";
 import MaterialIcon from "@/components/MaterialIcon";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { supabase } from "@/lib/supabase";
@@ -191,9 +190,5 @@ function QuestsPage() {
 }
 
 export default function QuestsPageWrapper() {
-  return (
-    <AppShell>
-      <QuestsPage />
-    </AppShell>
-  );
+  return <QuestsPage />;
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import AppShell from "@/components/AppShell";
 import MaterialIcon from "@/components/MaterialIcon";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { useAuthStore } from "@/store/authStore";
@@ -174,9 +173,5 @@ function InventoryPage() {
 }
 
 export default function InventoryPageWrapper() {
-  return (
-    <AppShell>
-      <InventoryPage />
-    </AppShell>
-  );
+  return <InventoryPage />;
 }

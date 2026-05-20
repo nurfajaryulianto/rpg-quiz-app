@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
-import AppShell from "@/components/AppShell";
 import MaterialIcon from "@/components/MaterialIcon";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { getXPProgress, getLevelTitle } from "@/utils/gamification";
@@ -321,9 +320,5 @@ function HomePage() {
 }
 
 export default function HomePageWrapper() {
-  return (
-    <AppShell>
-      <HomePage />
-    </AppShell>
-  );
+  return <HomePage />;
 }

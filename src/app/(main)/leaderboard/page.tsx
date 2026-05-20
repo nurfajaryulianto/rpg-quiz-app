@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import AppShell from "@/components/AppShell";
 import MaterialIcon from "@/components/MaterialIcon";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { getLeaderboard, type LeaderboardEntry } from "@/services/leaderboardService";
@@ -148,9 +147,5 @@ function LeaderboardPage() {
 }
 
 export default function LeaderboardPageWrapper() {
-  return (
-    <AppShell>
-      <LeaderboardPage />
-    </AppShell>
-  );
+  return <LeaderboardPage />;
 }

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/store/authStore";
-import AppShell from "@/components/AppShell";
 import MaterialIcon from "@/components/MaterialIcon";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import CharacterSpriteViewer from "@/components/ui/CharacterSpriteViewer";
@@ -39,11 +38,7 @@ function buildAllFrames(gender: Gender, hair: number, outfit: number, acc: numbe
 
 /* ── page entry ────────────────────────────────────── */
 export default function CharacterPage() {
-  return (
-    <AppShell>
-      <CharacterInner />
-    </AppShell>
-  );
+  return <CharacterInner />;
 }
 
 function CharacterInner() {
