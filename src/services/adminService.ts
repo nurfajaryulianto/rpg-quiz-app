@@ -292,6 +292,21 @@ export async function updateParticipant(id: string, updates: {
   return result.data;
 }
 
+export async function resetParticipantPassword(participantId: string) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const res = await fetch("/api/admin/reset-password", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
+    body: JSON.stringify({ participantId }),
+  });
+  const result = await res.json();
+  if (!result.success) throw new Error(result.message ?? "Failed to reset password");
+  return result.message as string;
+}
+
 export async function resetParticipantProgress(id: string) {
   const { error } = await supabase
     .from("participants")

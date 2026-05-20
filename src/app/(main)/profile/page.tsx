@@ -62,7 +62,7 @@ export default function ProfilePage() {
       }
       const { error } = await supabase.auth.updateUser({ password: newPw });
       if (error) throw error;
-      setPwMsg({ type: "ok", text: "Password berhasil diperbarui." });
+      setPwMsg({ type: "ok", text: "Password berhasil diperbarui. Gunakan password baru ini saat login berikutnya." });
       setCurrentPw("");
       setNewPw("");
       setConfirmPw("");

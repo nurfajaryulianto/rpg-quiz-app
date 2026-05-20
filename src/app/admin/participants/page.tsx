@@ -12,6 +12,7 @@ import {
   createParticipant,
   updateParticipant,
   resetParticipantProgress,
+  resetParticipantPassword,
 } from "@/services/adminService";
 import { parseParticipantsExcel } from "@/utils/excelParser";
 import type { Participant } from "@/lib/database.types";
@@ -33,6 +34,7 @@ export default function ParticipantsPage() {
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [resetPwResult, setResetPwResult] = useState<{ id: string; msg: string; ok: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<ParticipantForm>();
@@ -132,6 +134,18 @@ export default function ParticipantsPage() {
       await loadParticipants();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to reset");
+    }
+  };
+
+  const handleResetPassword = async (id: string, name: string) => {
+    if (!confirm(`Reset password "${name}" ke default (user123)?`)) return;
+    try {
+      const msg = await resetParticipantPassword(id);
+      setResetPwResult({ id, msg, ok: true });
+      setTimeout(() => setResetPwResult(null), 4000);
+    } catch (err) {
+      setResetPwResult({ id, msg: err instanceof Error ? err.message : "Gagal reset password", ok: false });
+      setTimeout(() => setResetPwResult(null), 4000);
     }
   };
 
@@ -355,16 +369,24 @@ export default function ParticipantsPage() {
                 <span className="text-sm text-primary font-bold">{p.total_score}</span>
                 <span className="text-sm text-on-surface">{p.quizzes_taken}</span>
                 <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => handleEdit(p)} className={btnSecondary}>
+                  <button onClick={() => handleEdit(p)} className={btnSecondary} title="Edit">
                     <MaterialIcon name="edit" className="text-sm" />
                   </button>
-                  <button onClick={() => handleResetProgress(p.id, p.name)} className={btnDanger}>
+                  <button onClick={() => handleResetPassword(p.id, p.name)} className={btnSecondary} title="Reset password ke user123">
+                    <MaterialIcon name="lock_reset" className="text-sm" />
+                  </button>
+                  <button onClick={() => handleResetProgress(p.id, p.name)} className={btnDanger} title="Reset progress">
                     <MaterialIcon name="restart_alt" className="text-sm" />
                   </button>
-                  <button onClick={() => handleDelete(p.id, p.name)} className={btnDanger}>
+                  <button onClick={() => handleDelete(p.id, p.name)} className={btnDanger} title="Hapus">
                     <MaterialIcon name="delete" className="text-sm" />
                   </button>
                 </div>
+                {resetPwResult?.id === p.id && (
+                  <p className={`text-xs font-semibold mt-1 ${resetPwResult.ok ? "text-green-600" : "text-rose-600"}`}>
+                    {resetPwResult.msg}
+                  </p>
+                )}
               </div>
             ))}
           </div>

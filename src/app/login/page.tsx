@@ -26,10 +26,15 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     setError(null);
     try {
-      await login(data.nik, data.password);
+      await login(data.nik.trim(), data.password);
       router.push("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      const msg = err instanceof Error ? err.message : "Login failed";
+      if (msg.toLowerCase().includes("invalid login credentials") || msg.toLowerCase().includes("invalid credentials")) {
+        setError("NIK atau password salah. Jika sudah ganti password dan lupa, minta admin untuk reset password kamu.");
+      } else {
+        setError(msg);
+      }
     }
   };
 
