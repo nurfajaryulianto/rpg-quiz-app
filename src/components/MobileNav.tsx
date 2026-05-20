@@ -15,18 +15,29 @@ export default function MobileNav() {
 
   const navItems = [
     { href: "/",          id: "home",        icon: "home",         label: "Home" },
-    ...(!isAdmin && !isSupervisor ? [
-      { href: "/quests",    id: "quests",     icon: "foundation",   label: "Quests" },
+
+    // Quests — participant and supervisor
+    ...(!isAdmin ? [
+      { href: "/quests", id: "quests", icon: "foundation", label: "Quests" },
     ] : []),
+
+    // Special center button
     ...(isAdmin
-      ? [{ href: "/admin", id: "admin", icon: "shield_person", label: "Admin", special: true }]
+      ? [{ href: "/admin",      id: "admin",      icon: "shield_person", label: "Admin",  special: true }]
       : isSupervisor
-      ? [{ href: "/supervisor", id: "supervisor", icon: "grading", label: "Grade", special: true }]
+      ? [{ href: "/supervisor", id: "supervisor", icon: "grading",       label: "Grade", special: true }]
       : []),
+
     { href: "/leaderboard", id: "leaderboard", icon: "leaderboard", label: "Rank" },
+
+    // Inventory — participant only
     ...(!isAdmin && !isSupervisor ? [
-      { href: "/inventory", id: "inventory",  icon: "backpack",     label: "Items" },
-      { href: "/character", id: "character",  icon: "person",       label: "Profile" },
+      { href: "/inventory", id: "inventory", icon: "backpack", label: "Items" },
+    ] : []),
+
+    // Character — participant and supervisor
+    ...(!isAdmin ? [
+      { href: "/character", id: "character", icon: "person", label: "Profile" },
     ] : []),
   ];
 

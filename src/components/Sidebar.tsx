@@ -7,10 +7,10 @@ import { getXPProgress, getLevelTitle } from "@/utils/gamification";
 
 const navItems = [
   { href: "/",          id: "home",        label: "Home",        icon: "home",           roles: ["participant", "supervisor", "admin"] },
-  { href: "/quests",    id: "quests",      label: "Quests",      icon: "foundation",      roles: ["participant"] },
+  { href: "/quests",    id: "quests",      label: "Quests",      icon: "foundation",      roles: ["participant", "supervisor"] },
   { href: "/leaderboard", id: "leaderboard", label: "Leaderboard", icon: "leaderboard",  roles: ["participant", "supervisor", "admin"] },
-  { href: "/inventory", id: "inventory",   label: "Inventory",   icon: "backpack",        roles: ["participant"] },
-  { href: "/character", id: "character",   label: "Character",   icon: "person",          roles: ["participant"] },
+  { href: "/inventory", id: "inventory",   label: "Inventory",   icon: "backpack",        roles: ["participant", "supervisor"] },
+  { href: "/character", id: "character",   label: "Character",   icon: "person",          roles: ["participant", "supervisor"] },
   { href: "/supervisor", id: "supervisor", label: "Grade Essay",  icon: "grading", fill: true, roles: ["supervisor"] },
   { href: "/admin",     id: "admin",       label: "Guild Master Panel", icon: "shield_person", fill: true, roles: ["admin"] },
 ];
