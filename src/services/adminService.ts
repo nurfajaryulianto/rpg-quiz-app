@@ -1040,7 +1040,7 @@ export async function generateBatchQuestionsFromArchives(
 
   for (const setting of activeSettings) {
     // 4. Fetch questions from archives filtered by type + difficulties
-    const diffs = (setting.include_difficulties ?? ["easy", "medium", "hard", "very_hard"]).filter(Boolean);
+    const diffs = (setting.include_difficulties ?? ["easy", "medium", "hard", "very_hard"]).filter(Boolean) as ("easy" | "medium" | "hard" | "very_hard")[];
     const { data: rawQuestions, error } = await supabase
       .from("archive_questions")
       .select("*, archive_options(*)")
