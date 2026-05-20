@@ -86,7 +86,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (data.user) {
         const { data: participant, error: pError } = await supabase
           .from("participants")
-          .select("id, user_id, name, email, nik, role, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, created_at, updated_at")
+          .select("id, user_id, name, email, nik, role, area, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, created_at, updated_at")
           .eq("user_id", data.user.id)
           .limit(1)
           .maybeSingle();
