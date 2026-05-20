@@ -1007,7 +1007,7 @@ export async function getBatchQuestionSettings(batchId: string): Promise<BatchQu
 
 export async function setBatchQuestionSettings(
   batchId: string,
-  settings: { question_type: string; count: number; points_per_question: number; include_difficulties: string[] }[]
+  settings: { question_type: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay"; count: number; points_per_question: number; include_difficulties: string[] }[]
 ) {
   await supabase.from("batch_question_settings").delete().eq("batch_id", batchId);
   const rows = settings
