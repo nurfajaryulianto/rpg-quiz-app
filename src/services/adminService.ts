@@ -278,9 +278,13 @@ export async function updateParticipant(id: string, updates: {
   role?: "participant" | "supervisor" | "admin";
   area?: string | null;
 }) {
+  const { data: { session } } = await supabase.auth.getSession();
   const res = await fetch("/api/admin/update-participant", {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    },
     body: JSON.stringify({ id, updates }),
   });
   const result = await res.json();
