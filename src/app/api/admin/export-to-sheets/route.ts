@@ -118,22 +118,30 @@ export async function POST(req: NextRequest) {
     correctLabel: q.options.find((o) => o.is_correct)?.option_label ?? "?",
   }));
 
-  // Build answer map
+  // Build answer map: participantId → questionId → optionLabel
   let answerMap = new Map<string, Map<string, string>>();
   if (rawSessions.length > 0) {
     const participantIds = rawSessions.map((s) => s.participant_id);
+
+    // Fetch answers (selected_option_id) + options (id, option_label) in one join
     const { data: answersData, error: answersError } = await supabaseAdmin
       .from("answers")
-      .select("participant_id, question_id, selected_option_label")
+      .select("participant_id, question_id, selected_option_id, options(id, option_label)")
       .eq("batch_id", batchId)
       .in("participant_id", participantIds);
 
     if (answersError) return NextResponse.json({ success: false, message: answersError.message }, { status: 500 });
 
     for (const ans of answersData ?? []) {
-      const a = ans as { participant_id: string; question_id: string; selected_option_label: string | null };
+      const a = ans as unknown as {
+        participant_id: string;
+        question_id: string;
+        selected_option_id: string | null;
+        options: { id: string; option_label: string } | null;
+      };
+      const label = a.options?.option_label ?? "-";
       if (!answerMap.has(a.participant_id)) answerMap.set(a.participant_id, new Map());
-      answerMap.get(a.participant_id)!.set(a.question_id, a.selected_option_label ?? "-");
+      answerMap.get(a.participant_id)!.set(a.question_id, label);
     }
   }
 

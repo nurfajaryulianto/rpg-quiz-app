@@ -953,11 +953,11 @@ export async function getBatchDetailedExportData(batchId: string): Promise<Sheet
     return { batchName, questions, rows: [] };
   }
 
-  // Fetch all answers for this batch
+  // Fetch answers joined with options to resolve the label (A/B/C/D)
   const participantIds = rawSessions.map((s) => s.participant_id);
   const { data: answersData, error: answersError } = await supabase
     .from("answers")
-    .select("participant_id, question_id, selected_option_label")
+    .select("participant_id, question_id, selected_option_id, options(id, option_label)")
     .eq("batch_id", batchId)
     .in("participant_id", participantIds);
 
@@ -966,9 +966,15 @@ export async function getBatchDetailedExportData(batchId: string): Promise<Sheet
   // Build answer map: participantId → questionId → optionLabel
   const answerMap = new Map<string, Map<string, string>>();
   for (const ans of answersData ?? []) {
-    const a = ans as { participant_id: string; question_id: string; selected_option_label: string | null };
+    const a = ans as unknown as {
+      participant_id: string;
+      question_id: string;
+      selected_option_id: string | null;
+      options: { id: string; option_label: string } | null;
+    };
+    const label = a.options?.option_label ?? "-";
     if (!answerMap.has(a.participant_id)) answerMap.set(a.participant_id, new Map());
-    answerMap.get(a.participant_id)!.set(a.question_id, a.selected_option_label ?? "-");
+    answerMap.get(a.participant_id)!.set(a.question_id, label);
   }
 
   const rows: SheetsExportParticipantRow[] = rawSessions.map((s) => {
