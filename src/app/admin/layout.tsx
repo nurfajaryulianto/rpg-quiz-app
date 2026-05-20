@@ -34,11 +34,14 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   const navItems = [
-    { href: "/admin", label: "Overview", icon: "dashboard" },
-    { href: "/admin/batches", label: "Batches", icon: "quiz" },
-    { href: "/admin/questions", label: "Questions", icon: "help_outline" },
-    { href: "/admin/participants", label: "Participants", icon: "groups" },
-    { href: "/admin/results", label: "Results", icon: "analytics" },
+    { href: "/admin",                    label: "Overview",    icon: "dashboard" },
+    { href: "/admin/batches",            label: "Batches",     icon: "quiz" },
+    { href: "/admin/questions",          label: "Questions",   icon: "help_outline" },
+    { href: "/admin/participants",       label: "Participants", icon: "groups" },
+    { href: "/admin/results",            label: "Results",     icon: "analytics" },
+    { href: "/admin/question-archives",  label: "Bank Soal",   icon: "library_books" },
+    { href: "/supervisor",               label: "Grade Essay",  icon: "grading" },
+    { href: "/admin/analytics",          label: "Analytics",   icon: "insights" },
   ];
 
   return (

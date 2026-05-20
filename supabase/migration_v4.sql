@@ -3,7 +3,7 @@
 -- ============================================================
 
 -- Bank soal (koleksi soal)
-CREATE TABLE question_archives (
+CREATE TABLE IF NOT EXISTS question_archives (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name        TEXT NOT NULL,
   description TEXT,
@@ -11,7 +11,7 @@ CREATE TABLE question_archives (
 );
 
 -- Soal dalam bank soal
-CREATE TABLE archive_questions (
+CREATE TABLE IF NOT EXISTS archive_questions (
   id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   archive_id    UUID NOT NULL REFERENCES question_archives(id) ON DELETE CASCADE,
   question_text TEXT NOT NULL,
@@ -26,7 +26,7 @@ CREATE TABLE archive_questions (
 );
 
 -- Pilihan jawaban untuk soal dalam bank
-CREATE TABLE archive_options (
+CREATE TABLE IF NOT EXISTS archive_options (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   question_id UUID NOT NULL REFERENCES archive_questions(id) ON DELETE CASCADE,
   option_text  TEXT NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE archive_options (
 );
 
 -- Many-to-many: batch memakai satu atau beberapa bank soal
-CREATE TABLE batch_archives (
+CREATE TABLE IF NOT EXISTS batch_archives (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   batch_id   UUID NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
   archive_id UUID NOT NULL REFERENCES question_archives(id) ON DELETE CASCADE,
@@ -43,7 +43,7 @@ CREATE TABLE batch_archives (
 );
 
 -- Konfigurasi jumlah soal per tipe per batch (dari bank soal)
-CREATE TABLE batch_question_settings (
+CREATE TABLE IF NOT EXISTS batch_question_settings (
   id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   batch_id             UUID NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
   question_type        TEXT NOT NULL
@@ -61,15 +61,27 @@ ALTER TABLE archive_options        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE batch_archives         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE batch_question_settings ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "auth_all" ON question_archives       FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON archive_questions       FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON archive_options         FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON batch_archives          FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "auth_all" ON batch_question_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'question_archives' AND policyname = 'auth_all') THEN
+    CREATE POLICY "auth_all" ON question_archives FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'archive_questions' AND policyname = 'auth_all') THEN
+    CREATE POLICY "auth_all" ON archive_questions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'archive_options' AND policyname = 'auth_all') THEN
+    CREATE POLICY "auth_all" ON archive_options FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'batch_archives' AND policyname = 'auth_all') THEN
+    CREATE POLICY "auth_all" ON batch_archives FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'batch_question_settings' AND policyname = 'auth_all') THEN
+    CREATE POLICY "auth_all" ON batch_question_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 -- Indexes
-CREATE INDEX idx_archive_questions_archive_id     ON archive_questions(archive_id);
-CREATE INDEX idx_archive_questions_type_diff      ON archive_questions(question_type, difficulty);
-CREATE INDEX idx_archive_options_question_id      ON archive_options(question_id);
-CREATE INDEX idx_batch_archives_batch_id          ON batch_archives(batch_id);
-CREATE INDEX idx_batch_question_settings_batch_id ON batch_question_settings(batch_id);
+CREATE INDEX IF NOT EXISTS idx_archive_questions_archive_id     ON archive_questions(archive_id);
+CREATE INDEX IF NOT EXISTS idx_archive_questions_type_diff      ON archive_questions(question_type, difficulty);
+CREATE INDEX IF NOT EXISTS idx_archive_options_question_id      ON archive_options(question_id);
+CREATE INDEX IF NOT EXISTS idx_batch_archives_batch_id          ON batch_archives(batch_id);
+CREATE INDEX IF NOT EXISTS idx_batch_question_settings_batch_id ON batch_question_settings(batch_id);

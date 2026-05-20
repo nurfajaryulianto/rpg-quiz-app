@@ -11,10 +11,8 @@ const navItems = [
   { href: "/leaderboard", id: "leaderboard", label: "Leaderboard", icon: "leaderboard",  roles: ["participant", "supervisor", "admin"] },
   { href: "/inventory", id: "inventory",   label: "Inventory",   icon: "backpack",        roles: ["participant"] },
   { href: "/character", id: "character",   label: "Character",   icon: "person",          roles: ["participant"] },
-  { href: "/supervisor", id: "supervisor", label: "Grade Essay",  icon: "grading", fill: true, roles: ["supervisor", "admin"] },
-  { href: "/admin",     id: "admin",       label: "Admin",       icon: "shield_person", fill: true, roles: ["admin"] },
-  { href: "/admin/question-archives", id: "archives", label: "Bank Soal", icon: "library_books", fill: true, roles: ["admin"] },
-  { href: "/admin/analytics", id: "analytics", label: "Analytics", icon: "insights", fill: true, roles: ["admin"] },
+  { href: "/supervisor", id: "supervisor", label: "Grade Essay",  icon: "grading", fill: true, roles: ["supervisor"] },
+  { href: "/admin",     id: "admin",       label: "Guild Master Panel", icon: "shield_person", fill: true, roles: ["admin"] },
 ];
 
 export default function Sidebar() {
