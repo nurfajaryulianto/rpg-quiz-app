@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import MaterialIcon from "@/components/MaterialIcon";
@@ -100,6 +100,11 @@ export default function SupervisorPage() {
     loadTasks();
   }, [participant, router, loadTasks]);
 
+  // Keep a stable ref to loadTasks so the realtime channel
+  // doesn't need to recreate itself every time the callback changes.
+  const loadTasksRef = useRef(loadTasks);
+  loadTasksRef.current = loadTasks;
+
   // Realtime subscription for live grading updates
   useEffect(() => {
     const channel = supabase
@@ -108,7 +113,7 @@ export default function SupervisorPage() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "answers" },
         () => {
-          loadTasks();
+          loadTasksRef.current();
         }
       )
       .subscribe();
@@ -116,7 +121,7 @@ export default function SupervisorPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadTasks]);
+  }, []); // empty deps — channel created once on mount, cleaned up on unmount
 
   const handleGrade = async (answerId: string, maxPoints: number) => {
     const raw = scoreInputs[answerId];
