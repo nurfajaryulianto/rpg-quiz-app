@@ -903,9 +903,9 @@ export async function createArchiveQuestion(
   archiveId: string,
   question: {
     question_text: string;
-    question_type: string;
+    question_type: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
     category?: string | null;
-    difficulty: string;
+    difficulty: "easy" | "medium" | "hard" | "very_hard";
     default_points: number;
     order_index?: number;
     options: { option_text: string; option_label: string; is_correct: boolean }[];
@@ -939,9 +939,9 @@ export async function updateArchiveQuestion(
   questionId: string,
   updates: {
     question_text?: string;
-    question_type?: string;
+    question_type?: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
     category?: string | null;
-    difficulty?: string;
+    difficulty?: "easy" | "medium" | "hard" | "very_hard";
     default_points?: number;
     options?: { option_text: string; option_label: string; is_correct: boolean }[];
   }
