@@ -99,8 +99,12 @@ function LeaderboardPage() {
                 className={`relative flex flex-col items-center ${isFeatured ? "order-first md:order-none" : ""}`}
               >
                 <div className={`relative mb-6 ${isFeatured ? "w-48 h-48" : "w-36 h-36"}`}>
-                  <div className="w-full h-full rounded-full bg-surface-container-high border-4 border-white shadow-2xl relative z-10 flex items-center justify-center">
-                    <MaterialIcon name="person" className={`${isFeatured ? "text-6xl" : "text-4xl"} text-primary`} fill />
+                  <div className="w-full h-full rounded-full bg-surface-container-high border-4 border-white shadow-2xl relative z-10 overflow-hidden flex items-center justify-center">
+                    {hero.avatar_url ? (
+                      <img src={hero.avatar_url} alt={hero.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <MaterialIcon name="person" className={`${isFeatured ? "text-6xl" : "text-4xl"} text-primary`} fill />
+                    )}
                   </div>
                   <div className={`absolute -bottom-4 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-white shadow-xl flex items-center justify-center z-20 font-black text-xl ${medalColor}`}>
                     {rank}
@@ -144,8 +148,12 @@ function LeaderboardPage() {
                     <td className="px-8 py-5 font-black text-on-surface-variant">#{rank}</td>
                     <td className="px-8 py-5">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center">
-                          <MaterialIcon name="person" className="text-primary" fill />
+                        <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden">
+                          {hero.avatar_url ? (
+                            <img src={hero.avatar_url} alt={hero.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <MaterialIcon name="person" className="text-primary" fill />
+                          )}
                         </div>
                         <span className={`font-bold ${isMe ? "text-primary" : "text-on-surface"}`}>
                           {hero.name} {isMe && "(You)"}
@@ -170,7 +178,7 @@ function LeaderboardPage() {
       {players.length === 0 && (
         <div className="text-center py-20">
           <MaterialIcon name="groups" className="text-6xl text-outline-variant mb-4" />
-          <p className="text-on-surface-variant font-medium text-lg">No heroes have completed quests yet</p>
+          <p className="text-on-surface-variant font-medium text-lg">No heroes have completed exams yet</p>
           <p className="text-on-surface-variant text-sm">Be the first to make your mark!</p>
         </div>
       )}

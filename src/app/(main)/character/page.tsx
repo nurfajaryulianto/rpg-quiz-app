@@ -332,7 +332,7 @@ function CharacterInner() {
             <div className="mt-4 grid grid-cols-3 gap-2 border-t border-white/[0.06] pt-4">
               {[
                 { label: "Total Score", value: participant?.total_score ?? 0, icon: "star" },
-                { label: "Quests Done", value: participant?.quizzes_taken ?? 0, icon: "check_circle" },
+                { label: "Exams Done", value: participant?.quizzes_taken ?? 0, icon: "check_circle" },
                 { label: "Total XP", value: participant?.xp ?? 0, icon: "bolt" },
               ].map(({ label, value, icon }) => (
                 <div key={label} className="flex flex-col items-center gap-1 rounded-xl bg-white/[0.03] border border-white/[0.05] py-3 px-2 text-center">

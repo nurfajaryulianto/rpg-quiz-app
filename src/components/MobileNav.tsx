@@ -23,7 +23,7 @@ export default function MobileNav() {
 
     // Quests — participant and supervisor
     ...(!isAdmin ? [
-      { href: "/quests", id: "quests", icon: "foundation", label: "Quests" },
+      { href: "/quests", id: "quests", icon: "foundation", label: "Exams" },
     ] : []),
 
     // Special center button

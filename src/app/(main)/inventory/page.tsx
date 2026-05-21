@@ -46,7 +46,7 @@ function InventoryPage() {
     .filter((s) => s.status === "completed" || s.status === "timed_out")
     .map((s) => ({
       id: s.id,
-      name: s.batches?.name ?? "Unknown Quest",
+      name: s.batches?.name ?? "Unknown Exam",
       type: s.status === "completed" ? "Badge" : "Attempt",
       rarity: s.score > 500 ? "Epic" : s.score > 200 ? "Rare" : s.score > 50 ? "Uncommon" : "Common",
       icon: s.status === "completed" ? "verified" : "timer",
@@ -59,9 +59,9 @@ function InventoryPage() {
   // Stats-based items from participant profile
   const achievements = [];
   if (participant) {
-    if (participant.quizzes_taken >= 1) achievements.push({ name: "First Steps", type: "Achievement", rarity: "Common", icon: "steps", color: "stone", desc: "Completed your first quest" });
-    if (participant.quizzes_taken >= 5) achievements.push({ name: "Quest Hunter", type: "Achievement", rarity: "Uncommon", icon: "explore", color: "blue", desc: "Completed 5 quests" });
-    if (participant.quizzes_taken >= 10) achievements.push({ name: "Veteran Hero", type: "Achievement", rarity: "Rare", icon: "military_tech", color: "orange", desc: "Completed 10 quests" });
+    if (participant.quizzes_taken >= 1) achievements.push({ name: "First Steps", type: "Achievement", rarity: "Common", icon: "steps", color: "stone", desc: "Completed your first exam" });
+    if (participant.quizzes_taken >= 5) achievements.push({ name: "Exam Hunter", type: "Achievement", rarity: "Uncommon", icon: "explore", color: "blue", desc: "Completed 5 exams" });
+    if (participant.quizzes_taken >= 10) achievements.push({ name: "Veteran Hero", type: "Achievement", rarity: "Rare", icon: "military_tech", color: "orange", desc: "Completed 10 exams" });
     if (participant.level >= 5) achievements.push({ name: "Rising Star", type: "Achievement", rarity: "Uncommon", icon: "stars", color: "amber", desc: `Reached level ${participant.level}` });
     if (participant.level >= 10) achievements.push({ name: "Elite Warrior", type: "Achievement", rarity: "Epic", icon: "local_fire_department", color: "red", desc: "Reached level 10" });
     if (participant.total_score >= 1000) achievements.push({ name: "Score Master", type: "Achievement", rarity: "Rare", icon: "emoji_events", color: "yellow", desc: "Scored over 1000 total points" });
@@ -86,7 +86,7 @@ function InventoryPage() {
           </div>
           <h1 className="text-4xl md:text-5xl font-black text-on-surface tracking-tight">Inventory</h1>
           <p className="text-on-surface-variant max-w-lg">
-            Manage your collected badges, achievements, and quest records.
+            Manage your collected badges, achievements, and exam records.
           </p>
         </div>
         <div className="flex bg-surface-container-low p-1.5 rounded-full shadow-inner border border-outline-variant/10">
@@ -110,7 +110,7 @@ function InventoryPage() {
         <div className="text-center py-20">
           <MaterialIcon name="inventory_2" className="text-6xl text-outline-variant mb-4" />
           <p className="text-on-surface-variant font-medium text-lg">Your inventory is empty</p>
-          <p className="text-on-surface-variant text-sm">Complete quests to earn badges and achievements!</p>
+          <p className="text-on-surface-variant text-sm">Complete exams to earn badges and achievements!</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
@@ -158,7 +158,7 @@ function InventoryPage() {
         <div className="flex-1 text-center md:text-left">
           <h3 className="text-2xl font-black text-on-surface mb-2">Your Collection</h3>
           <p className="text-on-surface-variant font-medium mb-4">
-            You have collected {allItems.length} items. Complete more quests to unlock rare badges!
+            You have collected {allItems.length} items. Complete more exams to unlock rare badges!
           </p>
           <div className="h-4 w-full max-w-md bg-white rounded-full overflow-hidden shadow-inner">
             <div

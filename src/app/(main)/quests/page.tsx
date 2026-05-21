@@ -84,7 +84,7 @@ function QuestsPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner text="Loading quests..." />
+        <LoadingSpinner text="Loading exams..." />
       </div>
     );
   }
@@ -114,7 +114,7 @@ function QuestsPage() {
             <MaterialIcon name="auto_stories" className="text-sm" />
             Active Missions
           </div>
-          <h1 className="text-4xl md:text-5xl font-black text-on-surface tracking-tight">Available Quests</h1>
+          <h1 className="text-4xl md:text-5xl font-black text-on-surface tracking-tight">Available Exams</h1>
           <p className="text-on-surface-variant max-w-lg">
             Embark on legendary training missions to level up your professional skills and earn rare academy badges.
           </p>
@@ -139,9 +139,9 @@ function QuestsPage() {
       {filteredBatches.length === 0 ? (
         <div className="text-center py-20">
           <MaterialIcon name="search_off" className="text-6xl text-outline-variant mb-4" />
-          <p className="text-on-surface-variant font-medium text-lg">No quests found</p>
+          <p className="text-on-surface-variant font-medium text-lg">No exams found</p>
           <p className="text-on-surface-variant text-sm">
-            {filter !== "all" ? "Try changing your filter." : "No active quests available right now. Check back later!"}
+            {filter !== "all" ? "Try changing your filter." : "No active exams available right now. Check back later!"}
           </p>
         </div>
       ) : (
@@ -179,13 +179,13 @@ function QuestsPage() {
                   {batch.name}
                 </h3>
                 <p className="text-sm text-on-surface-variant mb-6 line-clamp-2">
-                  {batch.description ?? "Begin this quest to earn XP and prove your knowledge!"}
+                  {batch.description ?? "Begin this exam to earn XP and prove your knowledge!"}
                 </p>
 
                 {/* Progress */}
                 <div className="space-y-4 mb-8">
                   <div className="flex justify-between text-xs font-bold uppercase text-on-surface-variant mb-1">
-                    <span>Quest Progress</span>
+                    <span>Exam Progress</span>
                     <span>{status.progress}%</span>
                   </div>
                   <div className="h-4 w-full bg-surface-container-highest rounded-full overflow-hidden relative shadow-inner">

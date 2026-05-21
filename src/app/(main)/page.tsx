@@ -98,7 +98,7 @@ function HomePage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner text="Loading your quest..." />
+        <LoadingSpinner text="Loading your exam..." />
       </div>
     );
   }
@@ -126,8 +126,8 @@ function HomePage() {
               Welcome Home, {participant.name}!
             </h1>
             <p className="text-xl text-on-surface-variant mb-8 max-w-xl leading-relaxed">
-              Your adventure in Maple Academy continues. The guild master has posted{" "}
-              {batches.length} active quest{batches.length !== 1 ? "s" : ""} on the bulletin board. Are you ready to level up?
+              Your adventure in Quality Management Academy continues. The guild master has posted{" "}
+              {batches.length} active exam{batches.length !== 1 ? "s" : ""} on the bulletin board. Are you ready to level up?
             </p>
             <div className="flex flex-wrap gap-4">
               <button
@@ -135,7 +135,7 @@ function HomePage() {
                 className="px-10 py-4 bubbly-gradient text-white font-black rounded-full shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
               >
                 <MaterialIcon name="swords" />
-                Start Questing
+                Start Exam
               </button>
               <button
                 onClick={() => router.push("/inventory")}
@@ -175,7 +175,7 @@ function HomePage() {
               {[
                 { label: "Total Score", val: participant.total_score, max: Math.max(participant.total_score, 1000), color: "rose" },
                 { label: "Experience", val: participant.xp, max: Math.max(participant.xp, 500), color: "blue" },
-                { label: "Quests Done", val: participant.quizzes_taken, max: Math.max(participant.quizzes_taken, 10), color: "green" },
+                { label: "Exams Done", val: participant.quizzes_taken, max: Math.max(participant.quizzes_taken, 10), color: "green" },
               ].map((stat) => (
                 <div key={stat.label}>
                   <div className="flex justify-between text-xs font-bold uppercase text-on-surface-variant mb-1">
@@ -212,7 +212,7 @@ function HomePage() {
       {/* Quick Access Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         {[
-          { title: "Active Quests", desc: `${batches.length} available`, icon: "swords", color: "primary", onClick: () => router.push("/quests") },
+          { title: "Active Exams", desc: `${batches.length} available`, icon: "swords", color: "primary", onClick: () => router.push("/quests") },
           { title: "Leaderboard", desc: `${topPlayers.length} heroes`, icon: "leaderboard", color: "secondary", onClick: () => router.push("/leaderboard") },
           { title: "Inventory", desc: "Check your badges", icon: "backpack", color: "tertiary", onClick: () => router.push("/inventory") },
           { title: "Next Level", desc: `${xpProgress.needed - xpProgress.current} XP remaining`, icon: "keyboard_double_arrow_up", color: "primary", onClick: () => {} },
@@ -247,7 +247,7 @@ function HomePage() {
               <span className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
                 <MaterialIcon name="swords" />
               </span>
-              Available Quests
+              Available Exams
             </h2>
             <button
               onClick={() => router.push("/quests")}
@@ -275,7 +275,7 @@ function HomePage() {
                   {batch.name}
                 </h3>
                 <p className="text-sm text-on-surface-variant mb-6 line-clamp-2">
-                  {batch.description ?? "Begin this quest to earn XP and level up!"}
+                  {batch.description ?? "Begin this exam to earn XP and level up!"}
                 </p>
                 <div className="flex items-center justify-between pt-4 border-t border-surface-container">
                   <div className="flex items-center gap-2">
@@ -325,8 +325,12 @@ function HomePage() {
                     <span className="font-black text-on-surface-variant w-8 text-center">
                       {index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `#${index + 1}`}
                     </span>
-                    <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center">
-                      <MaterialIcon name="person" className="text-primary" fill />
+                    <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center overflow-hidden">
+                      {player.avatar_url ? (
+                        <img src={player.avatar_url} alt={player.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <MaterialIcon name="person" className="text-primary" fill />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`font-bold text-sm truncate ${isMe ? "text-primary" : "text-on-surface"}`}>
