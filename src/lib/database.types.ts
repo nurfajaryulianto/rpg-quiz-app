@@ -522,7 +522,14 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      grade_essay_answer: {
+        Args: {
+          p_answer_id: string;
+          p_score: number;
+          p_graded_by: string;
+        };
+        Returns: undefined;
+      };
     };
     Enums: {
       [_ in never]: never;
