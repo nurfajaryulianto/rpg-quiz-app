@@ -14,7 +14,7 @@ export async function getLeaderboard(limit = 50): Promise<LeaderboardEntry[]> {
   const { data, error } = await supabase
     .from("participants")
     .select("id, name, level, xp, total_score, quizzes_taken, avatar_url")
-    .eq("role", "participant")
+    .in("role", ["participant", "supervisor"])
     .order("total_score", { ascending: false })
     .limit(limit);
 

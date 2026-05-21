@@ -42,7 +42,7 @@ function HomePage() {
           supabase
             .from("participants")
             .select("id, name, level, xp, total_score, quizzes_taken, avatar_url")
-            .eq("role", "participant")
+            .in("role", ["participant", "supervisor"])
             .order("total_score", { ascending: false })
             .limit(5)
             .abortSignal(controller.signal),

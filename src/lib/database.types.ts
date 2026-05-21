@@ -18,6 +18,7 @@ export type Database = {
           avatar_config: AvatarConfig | null;
           jabatan: string | null;
           sub_dept: string | null;
+          current_session_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -37,6 +38,7 @@ export type Database = {
           avatar_config?: AvatarConfig | null;
           jabatan?: string | null;
           sub_dept?: string | null;
+          current_session_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -56,6 +58,7 @@ export type Database = {
           avatar_config?: AvatarConfig | null;
           jabatan?: string | null;
           sub_dept?: string | null;
+          current_session_id?: string | null;
           updated_at?: string;
         };
         Relationships: [];

@@ -359,48 +359,17 @@ export async function gradeEssay(params: {
   score: number;
   gradedBy: string;
 }): Promise<void> {
-  // Update the answer with grade
-  const { data: answerData, error: answerError } = await supabase
-    .from("answers")
-    .update({
-      essay_graded: true,
-      graded_score: params.score,
-      points_earned: params.score,
-      is_correct: params.score > 0,
-      graded_by: params.gradedBy,
-      graded_at: new Date().toISOString(),
-    })
-    .eq("id", params.answerId)
-    .select("participant_id, batch_id")
-    .single();
-
-  if (answerError) throw answerError;
-
-  const { participant_id, batch_id } = answerData as { participant_id: string; batch_id: string };
-
-  // Recalculate total score from all answers for this participant+batch
-  const { data: allAnswers, error: sumError } = await supabase
-    .from("answers")
-    .select("points_earned")
-    .eq("participant_id", participant_id)
-    .eq("batch_id", batch_id);
-
-  if (sumError) throw sumError;
-
-  const totalScore = (allAnswers ?? []).reduce(
-    (sum: number, a: { points_earned: number }) => sum + (a.points_earned ?? 0),
-    0
-  );
-
-  // Update the most recent completed session for this participant+batch
-  const { error: sessionError } = await supabase
-    .from("exam_sessions")
-    .update({ score: totalScore })
-    .eq("participant_id", participant_id)
-    .eq("batch_id", batch_id)
-    .in("status", ["completed", "timed_out"]);
-
-  if (sessionError) throw sessionError;
+  // Delegates to a SECURITY DEFINER DB function that:
+  //   1. Updates answers (essay_graded, graded_score, points_earned, …)
+  //   2. Recalculates and updates the exam_session score
+  //   3. Propagates the score delta to participants.total_score
+  // The function validates that the caller is a supervisor or admin.
+  const { error } = await supabase.rpc("grade_essay_answer", {
+    p_answer_id: params.answerId,
+    p_score: params.score,
+    p_graded_by: params.gradedBy,
+  });
+  if (error) throw error;
 }
 
 /**
