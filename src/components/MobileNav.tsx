@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import MaterialIcon from "./MaterialIcon";
 import { useAuthStore } from "@/store/authStore";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 export default function MobileNav() {
   const router = useRouter();
@@ -17,6 +19,8 @@ export default function MobileNav() {
     await logout();
     router.push("/login");
   };
+
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const navItems = [
     { href: "/",          id: "home",        icon: "home",         label: "Home" },
@@ -37,7 +41,7 @@ export default function MobileNav() {
 
     // Inventory — participant only
     ...(!isAdmin && !isSupervisor ? [
-      { href: "/inventory", id: "inventory", icon: "backpack", label: "Items" },
+      { href: "/inventory", id: "inventory", icon: "backpack", label: "Materials" },
     ] : []),
 
     // Account/Profile — participant and supervisor (admins use the logout button below)
@@ -80,13 +84,25 @@ export default function MobileNav() {
       {/* Logout button — only shown for admin (other roles use the Account/Profile page) */}
       {isAdmin && (
         <button
-          onClick={handleLogout}
+          onClick={() => setShowLogoutConfirm(true)}
           className="flex flex-col items-center gap-1 text-rose-400"
         >
           <MaterialIcon name="logout" />
           <span className="text-[10px] font-bold uppercase tracking-tighter">Logout</span>
         </button>
       )}
+
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        title="Logout"
+        message="Apakah kamu yakin ingin keluar dari sesi ini?"
+        icon="logout"
+        confirmLabel="Ya, Logout"
+        cancelLabel="Batal"
+        variant="danger"
+        onConfirm={handleLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
     </nav>
   );
 }

@@ -1,15 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import MaterialIcon from "./MaterialIcon";
 import { useAuthStore } from "@/store/authStore";
 import { getXPProgress, getLevelTitle } from "@/utils/gamification";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 const navItems = [
   { href: "/",          id: "home",        label: "Home",        icon: "home",           roles: ["participant", "supervisor", "admin"] },
   { href: "/quests",    id: "quests",      label: "Exams",       icon: "foundation",      roles: ["participant", "supervisor"] },
   { href: "/leaderboard", id: "leaderboard", label: "Leaderboard", icon: "leaderboard",  roles: ["participant", "supervisor", "admin"] },
-  { href: "/inventory", id: "inventory",   label: "Inventory",   icon: "backpack",        roles: ["participant", "supervisor"] },
+  { href: "/inventory", id: "inventory",   label: "Learning Materials", icon: "backpack",        roles: ["participant", "supervisor"] },
   { href: "/character", id: "character",   label: "Character",   icon: "person",          roles: ["participant", "supervisor"] },
   { href: "/supervisor", id: "supervisor", label: "Grade Essay",  icon: "grading", fill: true, roles: ["supervisor"] },
   { href: "/admin",     id: "admin",       label: "Guild Master Panel", icon: "shield_person", fill: true, roles: ["admin"] },
@@ -21,6 +23,7 @@ export default function Sidebar() {
   const { participant, logout } = useAuthStore();
 
   const levelTitle = participant ? getLevelTitle(participant.level) : "Novice";
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -86,13 +89,25 @@ export default function Sidebar() {
 
       <div className="px-4 mt-auto pb-6">
         <button
-          onClick={handleLogout}
+          onClick={() => setShowLogoutConfirm(true)}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-full text-rose-400 hover:text-rose-600 hover:bg-rose-100 transition-colors text-sm font-semibold"
         >
           <MaterialIcon name="logout" className="text-base" />
           Logout
         </button>
       </div>
+
+      <ConfirmDialog
+        open={showLogoutConfirm}
+        title="Logout"
+        message="Apakah kamu yakin ingin keluar dari sesi ini?"
+        icon="logout"
+        confirmLabel="Ya, Logout"
+        cancelLabel="Batal"
+        variant="danger"
+        onConfirm={handleLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
     </aside>
   );
 }
