@@ -28,6 +28,8 @@ function HomePage() {
             .from("batches")
             .select("*")
             .eq("is_active", true)
+            .or(`start_time.is.null,start_time.lte.${new Date().toISOString()}`)
+            .or(`end_time.is.null,end_time.gte.${new Date().toISOString()}`)
             .order("created_at", { ascending: false }),
           supabase
             .from("participants")

@@ -23,7 +23,11 @@ function QuestsPage() {
     async function loadData() {
       try {
         const [batchRes, sessionRes, assignedRes] = await Promise.all([
-          supabase.from("batches").select("*").eq("is_active", true).order("created_at", { ascending: false }),
+          supabase.from("batches").select("*")
+            .eq("is_active", true)
+            .or(`start_time.is.null,start_time.lte.${new Date().toISOString()}`)
+            .or(`end_time.is.null,end_time.gte.${new Date().toISOString()}`)
+            .order("created_at", { ascending: false }),
           supabase.from("exam_sessions").select("*").eq("participant_id", participant!.id),
           participant!.role === "admin"
             ? Promise.resolve({ data: null })

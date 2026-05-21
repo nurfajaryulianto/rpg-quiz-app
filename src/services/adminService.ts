@@ -14,7 +14,22 @@ export async function getBatches(): Promise<Batch[]> {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return data ?? [];
+  const batches = data ?? [];
+
+  // Auto-deactivate any batch where end_time has passed but is still marked active
+  const now = new Date().toISOString();
+  const toDeactivate = batches.filter(
+    (b) => b.is_active && b.end_time != null && b.end_time < now
+  );
+  if (toDeactivate.length > 0) {
+    await supabase
+      .from("batches")
+      .update({ is_active: false })
+      .in("id", toDeactivate.map((b) => b.id));
+    toDeactivate.forEach((b) => { b.is_active = false; });
+  }
+
+  return batches;
 }
 
 export async function getBatch(id: string) {

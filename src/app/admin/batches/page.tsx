@@ -259,6 +259,11 @@ export default function BatchesPage() {
   };
 
   const handleToggleActive = async (batch: Batch) => {
+    const expired = !!batch.end_time && new Date(batch.end_time) < new Date();
+    // If batch is inactive and expired, warn admin that end_time has passed
+    if (!batch.is_active && expired) {
+      if (!confirm(`End time untuk batch "${batch.name}" sudah lewat. Yakin ingin mengaktifkan kembali? Pertimbangkan untuk memperbarui End Time juga.`)) return;
+    }
     try {
       await updateBatch(batch.id, { is_active: !batch.is_active });
       await loadBatches();
@@ -703,6 +708,16 @@ export default function BatchesPage() {
                           >
                             {batch.is_active ? "Active" : "Inactive"}
                           </span>
+                          {!!batch.end_time && new Date(batch.end_time) < new Date() && (
+                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-error-container/40 text-error">
+                              Expired
+                            </span>
+                          )}
+                          {!!batch.start_time && new Date(batch.start_time) > new Date() && !batch.end_time || (!!batch.start_time && new Date(batch.start_time) > new Date()) ? (
+                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-secondary-container text-on-secondary-container">
+                              Scheduled
+                            </span>
+                          ) : null}
                         </div>
                         {batch.description && (
                           <p className="text-on-surface-variant text-sm mt-0.5">{batch.description}</p>
@@ -746,7 +761,7 @@ export default function BatchesPage() {
                       }`}
                     >
                       <MaterialIcon name={batch.is_active ? "pause_circle" : "play_circle"} className="text-sm" />
-                      {batch.is_active ? "Deactivate" : "Activate"}
+                      {batch.is_active ? "Deactivate" : (!!batch.end_time && new Date(batch.end_time) < new Date() ? "Re-Activate" : "Activate")}
                     </button>
                     <button
                       onClick={() => handleEdit(batch)}
