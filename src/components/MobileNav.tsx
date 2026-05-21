@@ -7,11 +7,16 @@ import { useAuthStore } from "@/store/authStore";
 export default function MobileNav() {
   const router = useRouter();
   const pathname = usePathname();
-  const { participant } = useAuthStore();
+  const { participant, logout } = useAuthStore();
 
   const role = participant?.role ?? "participant";
   const isAdmin = role === "admin";
   const isSupervisor = role === "supervisor";
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
 
   const navItems = [
     { href: "/",          id: "home",        icon: "home",         label: "Home" },
@@ -35,7 +40,7 @@ export default function MobileNav() {
       { href: "/inventory", id: "inventory", icon: "backpack", label: "Items" },
     ] : []),
 
-    // Account/Profile — participant and supervisor (admins can use the admin panel)
+    // Account/Profile — participant and supervisor (admins use the logout button below)
     ...(!isAdmin ? [
       { href: "/profile", id: "profile", icon: "manage_accounts", label: "Account" },
     ] : []),
@@ -71,6 +76,18 @@ export default function MobileNav() {
           )}
         </button>
       ))}
+
+      {/* Logout button — only shown for admin (other roles use the Account/Profile page) */}
+      {isAdmin && (
+        <button
+          onClick={handleLogout}
+          className="flex flex-col items-center gap-1 text-rose-400"
+        >
+          <MaterialIcon name="logout" />
+          <span className="text-[10px] font-bold uppercase tracking-tighter">Logout</span>
+        </button>
+      )}
     </nav>
   );
 }
+
