@@ -19,7 +19,14 @@ function HomePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !participant) {
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    // Safety net: if the fetch hangs (stale TCP connection after idle), abort after 12s.
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     async function loadData() {
       try {
@@ -28,35 +35,55 @@ function HomePage() {
             .from("batches")
             .select("*")
             .eq("is_active", true)
-            .or(`start_time.is.null,start_time.lte.${new Date().toISOString()}`)
-            .or(`end_time.is.null,end_time.gte.${new Date().toISOString()}`)
-            .order("created_at", { ascending: false }),
+            .order("created_at", { ascending: false })
+            .abortSignal(controller.signal),
           supabase
             .from("participants")
             .select("id, name, level, xp, total_score, quizzes_taken, avatar_url")
             .eq("role", "participant")
             .order("total_score", { ascending: false })
-            .limit(5),
-          participant!.role === "admin"
+            .limit(5)
+            .abortSignal(controller.signal),
+          participant.role === "admin"
             ? Promise.resolve({ data: null })
-            : supabase.from("batch_participants").select("batch_id").eq("participant_id", participant!.id),
+            : supabase
+                .from("batch_participants")
+                .select("batch_id")
+                .eq("participant_id", participant.id)
+                .abortSignal(controller.signal),
         ]);
 
-        let allBatches = batchRes.data ?? [];
-        if (participant!.role !== "admin" && assignedRes.data) {
+        clearTimeout(timeoutId);
+
+        // Filter batches client-side by time window (avoids PostgREST .or() datetime parsing edge cases)
+        const now = new Date();
+        let allBatches = (batchRes.data ?? []).filter((b: Batch) => {
+          if (b.start_time && new Date(b.start_time) > now) return false;
+          if (b.end_time && new Date(b.end_time) < now) return false;
+          return true;
+        });
+
+        if (participant.role !== "admin" && assignedRes.data) {
           const assignedIds = new Set((assignedRes.data as { batch_id: string }[]).map((r) => r.batch_id));
           allBatches = allBatches.filter((b) => assignedIds.has(b.id));
         }
 
         setBatches(allBatches);
         setTopPlayers(leaderboardRes.data ?? []);
+      } catch {
+        // AbortError (timeout) or network error — show empty state rather than spinning forever
       } finally {
         setLoading(false);
       }
     }
 
     loadData();
-  }, [user]);
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [user, participant]);
 
   if (!user || !participant) {
     return (

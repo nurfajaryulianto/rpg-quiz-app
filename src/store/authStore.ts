@@ -25,15 +25,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initialize: async () => {
     if (get().isInitialized) return;
+    // Mark as initialized immediately to prevent concurrent duplicate calls
+    // (e.g. React strict-mode double-mount or multiple AuthProvider instances).
+    set({ isInitialized: true, isLoading: true });
 
-    set({ isLoading: true });
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session?.user) {
         const { data: participant } = await supabase
           .from("participants")
-          .select("id, user_id, name, email, nik, role, area, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, created_at, updated_at")
+          .select("id, user_id, name, email, nik, role, area, jabatan, sub_dept, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, created_at, updated_at")
           .eq("user_id", session.user.id)
           .limit(1)
           .maybeSingle();
@@ -44,10 +46,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
       }
     } finally {
-      set({ isLoading: false, isInitialized: true });
+      set({ isLoading: false });
     }
 
-    // Listen for auth state changes.
+    // Listen for auth state changes (token refresh, sign-out, etc.).
     // Skip INITIAL_SESSION — already handled by getSession() above.
     supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "INITIAL_SESSION") return;
@@ -56,16 +58,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
       if (session?.user) {
-        const { data: participant } = await supabase
+        const { data: freshParticipant } = await supabase
           .from("participants")
-          .select("id, user_id, name, email, nik, role, area, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, created_at, updated_at")
+          .select("id, user_id, name, email, nik, role, area, jabatan, sub_dept, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, created_at, updated_at")
           .eq("user_id", session.user.id)
           .limit(1)
           .maybeSingle();
 
         set({
           user: session.user,
-          participant: participant ?? null,
+          // If the re-fetch fails (e.g. network hiccup after idle), keep the
+          // current participant so pages don't get stuck on the error screen.
+          participant: freshParticipant ?? get().participant,
         });
       }
     });
@@ -86,7 +90,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (data.user) {
         const { data: participant, error: pError } = await supabase
           .from("participants")
-          .select("id, user_id, name, email, nik, role, area, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, created_at, updated_at")
+          .select("id, user_id, name, email, nik, role, area, jabatan, sub_dept, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, created_at, updated_at")
           .eq("user_id", data.user.id)
           .limit(1)
           .maybeSingle();

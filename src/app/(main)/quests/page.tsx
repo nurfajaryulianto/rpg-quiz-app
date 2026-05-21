@@ -18,25 +18,44 @@ function QuestsPage() {
   const [filter, setFilter] = useState<"all" | "available" | "completed">("all");
 
   useEffect(() => {
-    if (!participant) return;
+    if (!participant) {
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    // Safety net: if the fetch hangs (stale TCP connection after idle), abort after 12s.
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     async function loadData() {
       try {
         const [batchRes, sessionRes, assignedRes] = await Promise.all([
           supabase.from("batches").select("*")
             .eq("is_active", true)
-            .or(`start_time.is.null,start_time.lte.${new Date().toISOString()}`)
-            .or(`end_time.is.null,end_time.gte.${new Date().toISOString()}`)
-            .order("created_at", { ascending: false }),
-          supabase.from("exam_sessions").select("*").eq("participant_id", participant!.id),
-          participant!.role === "admin"
+            .order("created_at", { ascending: false })
+            .abortSignal(controller.signal),
+          supabase.from("exam_sessions").select("*")
+            .eq("participant_id", participant.id)
+            .abortSignal(controller.signal),
+          participant.role === "admin"
             ? Promise.resolve({ data: null })
-            : supabase.from("batch_participants").select("batch_id").eq("participant_id", participant!.id),
+            : supabase.from("batch_participants").select("batch_id")
+                .eq("participant_id", participant.id)
+                .abortSignal(controller.signal),
         ]);
 
-        let allBatches = batchRes.data ?? [];
+        clearTimeout(timeoutId);
+
+        // Filter batches client-side by time window (avoids PostgREST .or() datetime parsing edge cases)
+        const now = new Date();
+        let allBatches = (batchRes.data ?? []).filter((b: Batch) => {
+          if (b.start_time && new Date(b.start_time) > now) return false;
+          if (b.end_time && new Date(b.end_time) < now) return false;
+          return true;
+        });
+
         // Regular users only see batches they are assigned to
-        if (participant!.role !== "admin" && assignedRes.data) {
+        if (participant.role !== "admin" && assignedRes.data) {
           const assignedIds = new Set((assignedRes.data as { batch_id: string }[]).map((r) => r.batch_id));
           allBatches = allBatches.filter((b) => assignedIds.has(b.id));
         }
@@ -45,12 +64,19 @@ function QuestsPage() {
         const sessionMap = new Map<string, ExamSession>();
         (sessionRes.data ?? []).forEach((s: ExamSession) => sessionMap.set(s.batch_id, s));
         setSessions(sessionMap);
+      } catch {
+        // AbortError (timeout) or network error — show empty state rather than spinning forever
       } finally {
         setLoading(false);
       }
     }
 
     loadData();
+
+    return () => {
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
   }, [participant]);
 
   if (loading) {
