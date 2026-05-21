@@ -23,6 +23,8 @@ function QuestsPage() {
       return;
     }
 
+    // Capture a stable non-null reference; TypeScript doesn't narrow across async closures.
+    const p = participant;
     const controller = new AbortController();
     // Safety net: if the fetch hangs (stale TCP connection after idle), abort after 12s.
     const timeoutId = setTimeout(() => controller.abort(), 12000);
@@ -35,12 +37,12 @@ function QuestsPage() {
             .order("created_at", { ascending: false })
             .abortSignal(controller.signal),
           supabase.from("exam_sessions").select("*")
-            .eq("participant_id", participant.id)
+            .eq("participant_id", p.id)
             .abortSignal(controller.signal),
-          participant.role === "admin"
+          p.role === "admin"
             ? Promise.resolve({ data: null })
             : supabase.from("batch_participants").select("batch_id")
-                .eq("participant_id", participant.id)
+                .eq("participant_id", p.id)
                 .abortSignal(controller.signal),
         ]);
 
@@ -55,7 +57,7 @@ function QuestsPage() {
         });
 
         // Regular users only see batches they are assigned to
-        if (participant.role !== "admin" && assignedRes.data) {
+        if (p.role !== "admin" && assignedRes.data) {
           const assignedIds = new Set((assignedRes.data as { batch_id: string }[]).map((r) => r.batch_id));
           allBatches = allBatches.filter((b) => assignedIds.has(b.id));
         }

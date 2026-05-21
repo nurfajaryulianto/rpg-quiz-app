@@ -24,6 +24,8 @@ function HomePage() {
       return;
     }
 
+    // Capture a stable non-null reference; TypeScript doesn't narrow across async closures.
+    const p = participant;
     const controller = new AbortController();
     // Safety net: if the fetch hangs (stale TCP connection after idle), abort after 12s.
     const timeoutId = setTimeout(() => controller.abort(), 12000);
@@ -44,12 +46,12 @@ function HomePage() {
             .order("total_score", { ascending: false })
             .limit(5)
             .abortSignal(controller.signal),
-          participant.role === "admin"
+          p.role === "admin"
             ? Promise.resolve({ data: null })
             : supabase
                 .from("batch_participants")
                 .select("batch_id")
-                .eq("participant_id", participant.id)
+                .eq("participant_id", p.id)
                 .abortSignal(controller.signal),
         ]);
 
@@ -63,7 +65,7 @@ function HomePage() {
           return true;
         });
 
-        if (participant.role !== "admin" && assignedRes.data) {
+        if (p.role !== "admin" && assignedRes.data) {
           const assignedIds = new Set((assignedRes.data as { batch_id: string }[]).map((r) => r.batch_id));
           allBatches = allBatches.filter((b) => assignedIds.has(b.id));
         }
