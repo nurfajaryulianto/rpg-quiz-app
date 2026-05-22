@@ -2,14 +2,17 @@ import * as XLSX from "xlsx";
 
 export interface ParsedQuestion {
   question_text: string;
-  question_type: "multiple_choice" | "true_false";
+  question_type: "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
   category: string | null;
   difficulty: "easy" | "medium" | "hard";
   option_a: string;
   option_b: string;
   option_c: string;
   option_d: string;
+  /** For single-choice types (multiple_choice, true_false, binary) */
   correct_answer: "A" | "B" | "C" | "D";
+  /** For checkbox type: comma-separated correct labels, e.g. "A,C" */
+  correct_answers: string;
   points: number;
 }
 
@@ -55,10 +58,13 @@ export function parseQuestionsExcel(buffer: ArrayBuffer): ParsedQuestion[] {
     const points = Number(row.points ?? row.Points ?? 10);
 
     const rawType = String(row.question_type ?? row.type ?? "multiple_choice").trim().toLowerCase();
-    const questionType: "multiple_choice" | "true_false" =
-      rawType === "true_false" || rawType === "true/false" || rawType === "tf"
-        ? "true_false"
-        : "multiple_choice";
+    type QType = "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
+    const questionType: QType =
+      rawType === "true_false" || rawType === "true/false" || rawType === "tf" ? "true_false"
+      : rawType === "binary" || rawType === "ya/tidak" || rawType === "yes/no" ? "binary"
+      : rawType === "checkbox" || rawType === "check" || rawType === "multi" ? "checkbox"
+      : rawType === "essay" || rawType === "uraian" ? "essay"
+      : "multiple_choice";
 
     const rawDifficulty = String(row.difficulty ?? row.Difficulty ?? "medium").trim().toLowerCase();
     const difficulty: "easy" | "medium" | "hard" =
@@ -72,10 +78,28 @@ export function parseQuestionsExcel(buffer: ArrayBuffer): ParsedQuestion[] {
 
     if (!questionText) throw new Error(`Row ${index + 2}: Missing question text`);
 
+    // ── Essay: no options needed ──────────────────────────────
+    if (questionType === "essay") {
+      return {
+        question_text: questionText,
+        question_type: "essay",
+        category,
+        difficulty,
+        option_a: "",
+        option_b: "",
+        option_c: "",
+        option_d: "",
+        correct_answer: "A" as const,
+        correct_answers: "",
+        points: isNaN(points) ? 10 : points,
+      };
+    }
+
+    // ── True/False: A = Benar, B = Salah ─────────────────────
     if (questionType === "true_false") {
       if (!["A", "B"].includes(correctRaw)) {
         throw new Error(
-          `Row ${index + 2}: For true_false questions correct_answer must be A (Benar) or B (Salah)`
+          `Row ${index + 2}: Untuk soal true_false, correct_answer harus A (Benar) atau B (Salah)`
         );
       }
       return {
@@ -88,19 +112,69 @@ export function parseQuestionsExcel(buffer: ArrayBuffer): ParsedQuestion[] {
         option_c: "",
         option_d: "",
         correct_answer: correctRaw as "A" | "B",
+        correct_answers: "",
         points: isNaN(points) ? 10 : points,
       };
     }
 
-    // multiple_choice
+    // ── Binary: A = Ya, B = Tidak ─────────────────────────────
+    if (questionType === "binary") {
+      if (!["A", "B"].includes(correctRaw)) {
+        throw new Error(
+          `Row ${index + 2}: Untuk soal binary, correct_answer harus A (Ya) atau B (Tidak)`
+        );
+      }
+      return {
+        question_text: questionText,
+        question_type: "binary",
+        category,
+        difficulty,
+        option_a: "Ya",
+        option_b: "Tidak",
+        option_c: "",
+        option_d: "",
+        correct_answer: correctRaw as "A" | "B",
+        correct_answers: "",
+        points: isNaN(points) ? 10 : points,
+      };
+    }
+
+    // ── Checkbox: multiple correct (correct_answers = comma-separated e.g. "A,C") ──
+    if (questionType === "checkbox") {
+      const cbOptA = String(row.option_a ?? row.A ?? row.a ?? "").trim();
+      const cbOptB = String(row.option_b ?? row.B ?? row.b ?? "").trim();
+      const cbOptC = String(row.option_c ?? row.C ?? row.c ?? "").trim();
+      const cbOptD = String(row.option_d ?? row.D ?? row.d ?? "").trim();
+      if (!cbOptA || !cbOptB) throw new Error(`Row ${index + 2}: Soal checkbox minimal butuh opsi A dan B`);
+      const rawCA = String(row.correct_answers ?? row.correct_answer ?? row.Jawaban ?? "").trim().toUpperCase();
+      if (!rawCA) throw new Error(`Row ${index + 2}: Soal checkbox butuh kolom correct_answers (contoh: "A,C")`);
+      const labels = rawCA.split(",").map((s) => s.trim()).filter(Boolean);
+      const invalid = labels.filter((l) => !["A", "B", "C", "D"].includes(l));
+      if (invalid.length > 0) throw new Error(`Row ${index + 2}: correct_answers berisi label tidak valid: ${invalid.join(", ")}`);
+      return {
+        question_text: questionText,
+        question_type: "checkbox",
+        category,
+        difficulty,
+        option_a: cbOptA,
+        option_b: cbOptB,
+        option_c: cbOptC,
+        option_d: cbOptD,
+        correct_answer: "A" as const,
+        correct_answers: rawCA,
+        points: isNaN(points) ? 10 : points,
+      };
+    }
+
+    // ── Multiple Choice (default) ─────────────────────────────
     const optA = String(row.option_a ?? row.A ?? row.a ?? "").trim();
     const optB = String(row.option_b ?? row.B ?? row.b ?? "").trim();
     const optC = String(row.option_c ?? row.C ?? row.c ?? "").trim();
     const optD = String(row.option_d ?? row.D ?? row.d ?? "").trim();
 
-    if (!optA || !optB || !optC || !optD) throw new Error(`Row ${index + 2}: Missing options`);
+    if (!optA || !optB || !optC || !optD) throw new Error(`Row ${index + 2}: Opsi A, B, C, D wajib diisi untuk soal pilihan ganda`);
     if (!["A", "B", "C", "D"].includes(correctRaw)) {
-      throw new Error(`Row ${index + 2}: Invalid correct_answer "${correctRaw}". Must be A, B, C, or D`);
+      throw new Error(`Row ${index + 2}: correct_answer tidak valid "${correctRaw}". Harus A, B, C, atau D`);
     }
 
     return {
@@ -113,6 +187,7 @@ export function parseQuestionsExcel(buffer: ArrayBuffer): ParsedQuestion[] {
       option_c: optC,
       option_d: optD,
       correct_answer: correctRaw as "A" | "B" | "C" | "D",
+      correct_answers: "",
       points: isNaN(points) ? 10 : points,
     };
   });

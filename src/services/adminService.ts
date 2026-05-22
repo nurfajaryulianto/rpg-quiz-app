@@ -199,7 +199,6 @@ export async function uploadQuestions(batchId: string, questions: ParsedQuestion
 
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
-    const isTrueFalse = q.question_type === "true_false";
 
     const { data: questionData, error: qError } = await supabase
       .from("questions")
@@ -217,17 +216,50 @@ export async function uploadQuestions(batchId: string, questions: ParsedQuestion
 
     if (qError) throw qError;
 
-    const options = isTrueFalse
-      ? [
-          { question_id: questionData.id, option_text: "Benar", option_label: "A" as const, is_correct: q.correct_answer === "A" },
-          { question_id: questionData.id, option_text: "Salah", option_label: "B" as const, is_correct: q.correct_answer === "B" },
-        ]
-      : [
-          { question_id: questionData.id, option_text: q.option_a, option_label: "A" as const, is_correct: q.correct_answer === "A" },
-          { question_id: questionData.id, option_text: q.option_b, option_label: "B" as const, is_correct: q.correct_answer === "B" },
-          { question_id: questionData.id, option_text: q.option_c, option_label: "C" as const, is_correct: q.correct_answer === "C" },
-          { question_id: questionData.id, option_text: q.option_d, option_label: "D" as const, is_correct: q.correct_answer === "D" },
-        ];
+    // Essay: no options to insert
+    if (q.question_type === "essay") {
+      results.push(questionData);
+      continue;
+    }
+
+    let options: { question_id: string; option_text: string; option_label: string; is_correct: boolean }[];
+
+    if (q.question_type === "true_false") {
+      options = [
+        { question_id: questionData.id, option_text: "Benar", option_label: "A", is_correct: q.correct_answer === "A" },
+        { question_id: questionData.id, option_text: "Salah", option_label: "B", is_correct: q.correct_answer === "B" },
+      ];
+    } else if (q.question_type === "binary") {
+      options = [
+        { question_id: questionData.id, option_text: "Ya", option_label: "A", is_correct: q.correct_answer === "A" },
+        { question_id: questionData.id, option_text: "Tidak", option_label: "B", is_correct: q.correct_answer === "B" },
+      ];
+    } else if (q.question_type === "checkbox") {
+      // correct_answers is comma-separated e.g. "A,C"
+      const correctLabels = (q.correct_answers ?? "").split(",").map((s) => s.trim().toUpperCase());
+      const rawOpts = [
+        { text: q.option_a, label: "A" },
+        { text: q.option_b, label: "B" },
+        { text: q.option_c, label: "C" },
+        { text: q.option_d, label: "D" },
+      ];
+      options = rawOpts
+        .filter((o) => o.text.trim() !== "")
+        .map((o) => ({
+          question_id: questionData.id,
+          option_text: o.text,
+          option_label: o.label,
+          is_correct: correctLabels.includes(o.label),
+        }));
+    } else {
+      // multiple_choice
+      options = [
+        { question_id: questionData.id, option_text: q.option_a, option_label: "A", is_correct: q.correct_answer === "A" },
+        { question_id: questionData.id, option_text: q.option_b, option_label: "B", is_correct: q.correct_answer === "B" },
+        { question_id: questionData.id, option_text: q.option_c, option_label: "C", is_correct: q.correct_answer === "C" },
+        { question_id: questionData.id, option_text: q.option_d, option_label: "D", is_correct: q.correct_answer === "D" },
+      ];
+    }
 
     const { error: oError } = await supabase.from("options").insert(options);
     if (oError) throw oError;
