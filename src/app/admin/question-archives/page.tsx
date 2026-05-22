@@ -6,7 +6,7 @@ import { useForm, useWatch } from "react-hook-form";
 import MaterialIcon from "@/components/MaterialIcon";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { getArchives, createArchive, updateArchive, deleteArchive, getArchiveQuestions, createArchiveQuestion, updateArchiveQuestion, deleteArchiveQuestion } from "@/services/adminService";
-import { parseArchiveQuestionsExcel } from "@/utils/excelParser";
+import { parseArchiveQuestionsExcel, generateArchiveTemplateBuffer } from "@/utils/excelParser";
 import type { QuestionArchive, ArchiveQuestionWithOptions } from "@/lib/database.types";
 
 type QType = "multiple_choice" | "true_false" | "binary" | "checkbox" | "essay";
@@ -144,6 +144,17 @@ export default function QuestionArchivesPage() {
   };
 
   // ---- Question CRUD ----
+  const handleDownloadTemplate = () => {
+    const buffer = generateArchiveTemplateBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "template_bank_soal.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedArchive) { alert("Pilih bank soal terlebih dahulu"); return; }
     const file = e.target.files?.[0];
@@ -405,7 +416,7 @@ export default function QuestionArchivesPage() {
                   </button>
                   <label
                     className={`px-4 py-2 bg-tertiary-container text-on-tertiary-container text-sm font-bold rounded-lg hover:opacity-80 transition-opacity flex items-center gap-2 cursor-pointer ${uploadingExcel ? "opacity-50 pointer-events-none" : ""}`}
-                    title="Import soal dari Excel (Kategori, Pertanyaan, A, B, C, D, Jawaban)"
+                    title="Import soal dari Excel — semua tipe soal didukung"
                   >
                     <MaterialIcon name="upload_file" className="text-lg" />
                     {uploadingExcel ? "Importing..." : "Import Excel"}
@@ -418,6 +429,14 @@ export default function QuestionArchivesPage() {
                       disabled={uploadingExcel}
                     />
                   </label>
+                  <button
+                    onClick={handleDownloadTemplate}
+                    className="px-4 py-2 bg-surface-container-high text-on-surface text-sm font-bold rounded-lg hover:bg-surface-container transition-colors flex items-center gap-2"
+                    title="Download template Excel dengan contoh semua tipe soal"
+                  >
+                    <MaterialIcon name="download" className="text-lg" />
+                    Template
+                  </button>
                 </div>
                 {uploadResult && (
                   <p className={`mt-2 text-xs font-medium ${uploadResult.startsWith("Error") ? "text-error" : "text-tertiary"}`}>
