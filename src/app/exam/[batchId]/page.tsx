@@ -150,6 +150,34 @@ function ExamPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [participant, batchId]);
 
+  // ─── Finish exam ──────────────────────────────────────────
+  // Declared before timer / visibility effects that depend on it.
+  const handleFinish = useCallback(async (status: "completed" | "timed_out") => {
+    if (finishingRef.current || !sessionId || !participant) return;
+    finishingRef.current = true;
+    if (timerRef.current) clearInterval(timerRef.current);
+    storeRef.current.setSubmitting(true);
+    try {
+      const s = storeRef.current;
+      await finishExam({
+        sessionId,
+        participantId: participant.id,
+        totalScore: s.score,
+        totalXP: s.xpEarned,
+        maxStreak: s.maxStreak,
+        status,
+      });
+      storeRef.current.setFinished(true);
+      setShowConfirmFinish(false);
+      setShowResults(true);
+    } catch (err: unknown) {
+      setError((err as Error).message ?? "Failed to submit exam");
+      finishingRef.current = false;
+    } finally {
+      storeRef.current.setSubmitting(false);
+    }
+  }, [sessionId, participant]);
+
   // ─── Global countdown timer (wall-clock based) ───────────
   // Uses Date.now() instead of pure tick-counting so it is immune to
   // setInterval throttling when the browser tab is hidden / device sleeps.
@@ -169,7 +197,7 @@ function ExamPage() {
     }, 500); // Poll every 500 ms for sub-second accuracy
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, showResults]);
+  }, [loading, showResults, handleFinish]);
 
   // ─── Sync timer when tab becomes visible again ───────────
   // Handles: tab switch, browser minimize, device sleep/wake.
@@ -208,33 +236,6 @@ function ExamPage() {
       window.removeEventListener("offline", onOffline);
     };
   }, []);
-
-  // ─── Finish exam ──────────────────────────────────────────
-  const handleFinish = useCallback(async (status: "completed" | "timed_out") => {
-    if (finishingRef.current || !sessionId || !participant) return;
-    finishingRef.current = true;
-    if (timerRef.current) clearInterval(timerRef.current);
-    storeRef.current.setSubmitting(true);
-    try {
-      const s = storeRef.current;
-      await finishExam({
-        sessionId,
-        participantId: participant.id,
-        totalScore: s.score,
-        totalXP: s.xpEarned,
-        maxStreak: s.maxStreak,
-        status,
-      });
-      storeRef.current.setFinished(true);
-      setShowConfirmFinish(false);
-      setShowResults(true);
-    } catch (err: unknown) {
-      setError((err as Error).message ?? "Failed to submit exam");
-      finishingRef.current = false;
-    } finally {
-      storeRef.current.setSubmitting(false);
-    }
-  }, [sessionId, participant]);
 
   // ─── Submit single-choice (MCQ / true_false / binary) ─────
   const handleSingleAnswer = useCallback(async (question: QuestionWithOptions, optionId: string) => {
