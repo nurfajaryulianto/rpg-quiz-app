@@ -7,6 +7,10 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "npm audit": true
+        "npm audit": true,
+        "git add": true,
+        "git commit": true,
+        "git push": true,
+        "ForEach-Object": true
     }
 }
