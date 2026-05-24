@@ -6,6 +6,7 @@
         "/^Set-Location \"c:\\\\Users\\\\fajar\\.yulianto\\\\Documents\\\\ISENG\\\\rpg-quiz-app\"\nnode -e \"console\\.log\\('node ok'\\)\"$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "npm audit": true
     }
 }

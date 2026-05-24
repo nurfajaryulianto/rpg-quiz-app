@@ -7,7 +7,19 @@ function getSupabase(): SupabaseClient<Database> {
   if (!_supabase) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    _supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+    _supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+        reconnectAfterMs: (tries: number) => Math.min(tries * 1000, 30000),
+      },
+    });
   }
   return _supabase;
 }

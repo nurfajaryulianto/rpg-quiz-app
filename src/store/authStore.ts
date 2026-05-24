@@ -22,6 +22,9 @@ const NIK_EMAIL_DOMAIN = "ksm.local";
 // on logout / sign-out event.
 let sessionNonceChannel: RealtimeChannel | null = null;
 
+// Auth state subscription — stored so it can be unsubscribed on cleanup.
+let authStateSubscription: { unsubscribe: () => void } | null = null;
+
 function nonceKey(participantId: string) {
   return `_sn_${participantId}`;
 }
@@ -76,6 +79,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // (e.g. React strict-mode double-mount or multiple AuthProvider instances).
     set({ isInitialized: true, isLoading: true });
 
+    // Clean up any previous auth subscription (hot-reload safety)
+    if (authStateSubscription) {
+      authStateSubscription.unsubscribe();
+      authStateSubscription = null;
+    }
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -117,7 +126,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // Listen for auth state changes (token refresh, sign-out, etc.).
     // Skip INITIAL_SESSION — already handled by getSession() above.
-    supabase.auth.onAuthStateChange(async (event, session) => {
+    // Store the subscription so it can be cleaned up if needed.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "INITIAL_SESSION") return;
       if (event === "SIGNED_OUT") {
         // Clean up Realtime nonce watcher
@@ -128,6 +138,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: null, participant: null });
         return;
       }
+      // TOKEN_REFRESHED or USER_UPDATED — re-sync participant data
       if (session?.user) {
         const { data: freshParticipant } = await supabase
           .from("participants")
@@ -144,6 +155,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
       }
     });
+
+    // Store subscription reference for future cleanup (e.g. on hot-reload)
+    authStateSubscription = subscription;
   },
 
   login: async (nik: string, password: string) => {

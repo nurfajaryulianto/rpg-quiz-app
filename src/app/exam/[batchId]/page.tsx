@@ -47,10 +47,14 @@ function ExamPage() {
   const [showResults, setShowResults] = useState(false);
   const [showConfirmFinish, setShowConfirmFinish] = useState(false);
   const [submittingQuestion, setSubmittingQuestion] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
 
   const finishingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const storeRef = useRef(store);
+  // Wall-clock timestamp when the exam should end (ms).
+  // Immune to setInterval throttling in background tabs.
+  const examEndTimeRef = useRef<number | null>(null);
   storeRef.current = store;
 
   // ─── Load exam ────────────────────────────────────────────
@@ -79,7 +83,29 @@ function ExamPage() {
 
         const qs = await fetchExamQuestions(batchId, session.question_order);
         if (cancelled) return;
+
+        // ── Wall-clock timer: calculate true remaining time ──────────────
+        // Use session.started_at so a page-refresh doesn't reset the timer.
+        const elapsedSeconds = Math.floor(
+          (Date.now() - new Date(session.started_at).getTime()) / 1000
+        );
+        const remainingSeconds = Math.max(
+          0,
+          b.time_limit_seconds - elapsedSeconds
+        );
+
+        // If already expired server-side, finish immediately
+        if (remainingSeconds <= 0) {
+          storeRef.current.setQuestions(qs, b.time_limit_seconds);
+          setLoading(false);
+          handleFinish("timed_out");
+          return;
+        }
+
         storeRef.current.setQuestions(qs, b.time_limit_seconds);
+        storeRef.current.setExamTimeRemaining(remainingSeconds);
+        // Anchor the end-time for wall-clock sync
+        examEndTimeRef.current = Date.now() + remainingSeconds * 1000;
 
         // Restore already-answered questions (resume support)
         const { data: existingAnswers } = await supabase
@@ -124,21 +150,64 @@ function ExamPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [participant, batchId]);
 
-  // ─── Global countdown timer ───────────────────────────────
+  // ─── Global countdown timer (wall-clock based) ───────────
+  // Uses Date.now() instead of pure tick-counting so it is immune to
+  // setInterval throttling when the browser tab is hidden / device sleeps.
   useEffect(() => {
     if (loading || showResults) return;
     timerRef.current = setInterval(() => {
-      const cur = storeRef.current.examTimeRemaining;
-      if (cur <= 1) {
+      if (examEndTimeRef.current === null) return;
+      const remaining = Math.max(
+        0,
+        Math.round((examEndTimeRef.current - Date.now()) / 1000)
+      );
+      storeRef.current.setExamTimeRemaining(remaining);
+      if (remaining <= 0) {
         clearInterval(timerRef.current!);
         handleFinish("timed_out");
-      } else {
-        storeRef.current.setExamTimeRemaining(cur - 1);
       }
-    }, 1000);
+    }, 500); // Poll every 500 ms for sub-second accuracy
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, showResults]);
+
+  // ─── Sync timer when tab becomes visible again ───────────
+  // Handles: tab switch, browser minimize, device sleep/wake.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible" &&
+        !showResults &&
+        !loading &&
+        examEndTimeRef.current !== null
+      ) {
+        const remaining = Math.max(
+          0,
+          Math.round((examEndTimeRef.current - Date.now()) / 1000)
+        );
+        storeRef.current.setExamTimeRemaining(remaining);
+        if (remaining <= 0 && !finishingRef.current) {
+          handleFinish("timed_out");
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [showResults, loading, handleFinish]);
+
+  // ─── Online / offline detection ──────────────────────────
+  useEffect(() => {
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    // Sync with current state on mount
+    setIsOffline(!navigator.onLine);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   // ─── Finish exam ──────────────────────────────────────────
   const handleFinish = useCallback(async (status: "completed" | "timed_out") => {
@@ -381,6 +450,14 @@ function ExamPage() {
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
+      {/* Offline banner */}
+      {isOffline && (
+        <div className="bg-error text-on-error text-xs text-center py-1.5 px-4 font-semibold shrink-0 flex items-center justify-center gap-2">
+          <MaterialIcon name="wifi_off" className="text-sm" />
+          Koneksi terputus — jawaban tidak dapat disimpan. Periksa internet Anda.
+        </div>
+      )}
+
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-surface border-b border-outline/20 shrink-0">
         <div className="flex-1 min-w-0">
