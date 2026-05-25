@@ -690,7 +690,7 @@ export default function BatchesPage() {
           {filteredBatches.map((batch) => (
             <div key={batch.id}>
               <div className="bg-white rounded-xl bubbly-shadow p-5">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center">
@@ -744,60 +744,69 @@ export default function BatchesPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => toggleBatchStats(batch.id)}
-                      className="px-3 py-1.5 bg-surface-container-high text-on-surface text-xs font-bold rounded-lg hover:bg-surface-container transition-colors flex items-center gap-1"
-                    >
-                      <MaterialIcon name="analytics" className="text-sm" />
-                      {expandedBatch === batch.id ? "Hide" : "Stats"}
-                    </button>
-                    <button
-                      onClick={() => handleToggleActive(batch)}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 ${
-                        batch.is_active
-                          ? "bg-error-container/20 text-error hover:bg-error-container/30"
-                          : "bg-tertiary-container text-on-tertiary-container hover:opacity-80"
-                      }`}
-                    >
-                      <MaterialIcon name={batch.is_active ? "pause_circle" : "play_circle"} className="text-sm" />
-                      {batch.is_active ? "Deactivate" : (!!batch.end_time && new Date(batch.end_time) < new Date() ? "Re-Activate" : "Activate")}
-                    </button>
-                    <button
-                      onClick={() => handleEdit(batch)}
-                      className="px-3 py-1.5 bg-surface-container-high text-on-surface text-xs font-bold rounded-lg hover:bg-surface-container transition-colors flex items-center gap-1"
-                    >
-                      <MaterialIcon name="edit" className="text-sm" />
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDuplicate(batch.id)}
-                      className="px-3 py-1.5 bg-surface-container-high text-on-surface text-xs font-bold rounded-lg hover:bg-surface-container transition-colors flex items-center gap-1"
-                    >
-                      <MaterialIcon name="content_copy" className="text-sm" />
-                      Duplicate
-                    </button>
-                    <button
-                      onClick={() => router.push(`/admin/questions`)}
-                      className="px-3 py-1.5 bg-surface-container-high text-on-surface text-xs font-bold rounded-lg hover:bg-surface-container transition-colors flex items-center gap-1"
-                    >
-                      <MaterialIcon name="help_outline" className="text-sm" />
-                      Questions
-                    </button>
-                    <button
-                      onClick={() => openManageParticipants(batch)}
-                      className="px-3 py-1.5 bg-secondary-container text-on-secondary-container text-xs font-bold rounded-lg hover:opacity-80 transition-colors flex items-center gap-1"
-                    >
-                      <MaterialIcon name="group_add" className="text-sm" />
-                      Participants
-                    </button>
-                    <button
-                      onClick={() => handleDelete(batch.id)}
-                      className="px-3 py-1.5 bg-error-container/20 text-error text-xs font-bold rounded-lg hover:bg-error-container/30 transition-colors flex items-center gap-1"
-                    >
-                      <MaterialIcon name="delete" className="text-sm" />
-                      Delete
-                    </button>
+                  {/* Action buttons — Gestalt Law of Proximity:
+                      primary management actions are grouped together;
+                      the destructive Delete is visually separated below. */}
+                  <div className="flex flex-col gap-2 items-start md:items-end shrink-0">
+                    {/* Primary management actions */}
+                    <div className="flex flex-wrap gap-2 justify-start md:justify-end">
+                      <button
+                        onClick={() => toggleBatchStats(batch.id)}
+                        className="px-3 py-1.5 bg-surface-container-high text-on-surface text-xs font-bold rounded-lg hover:bg-surface-container transition-colors flex items-center gap-1"
+                      >
+                        <MaterialIcon name="analytics" className="text-sm" />
+                        {expandedBatch === batch.id ? "Hide" : "Stats"}
+                      </button>
+                      <button
+                        onClick={() => handleToggleActive(batch)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 ${
+                          batch.is_active
+                            ? "bg-error-container/20 text-error hover:bg-error-container/30"
+                            : "bg-tertiary-container text-on-tertiary-container hover:opacity-80"
+                        }`}
+                      >
+                        <MaterialIcon name={batch.is_active ? "pause_circle" : "play_circle"} className="text-sm" />
+                        {batch.is_active ? "Deactivate" : (!!batch.end_time && new Date(batch.end_time) < new Date() ? "Re-Activate" : "Activate")}
+                      </button>
+                      <button
+                        onClick={() => handleEdit(batch)}
+                        className="px-3 py-1.5 bg-surface-container-high text-on-surface text-xs font-bold rounded-lg hover:bg-surface-container transition-colors flex items-center gap-1"
+                      >
+                        <MaterialIcon name="edit" className="text-sm" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDuplicate(batch.id)}
+                        className="px-3 py-1.5 bg-surface-container-high text-on-surface text-xs font-bold rounded-lg hover:bg-surface-container transition-colors flex items-center gap-1"
+                      >
+                        <MaterialIcon name="content_copy" className="text-sm" />
+                        Duplicate
+                      </button>
+                      <button
+                        onClick={() => router.push(`/admin/questions`)}
+                        className="px-3 py-1.5 bg-surface-container-high text-on-surface text-xs font-bold rounded-lg hover:bg-surface-container transition-colors flex items-center gap-1"
+                      >
+                        <MaterialIcon name="help_outline" className="text-sm" />
+                        Questions
+                      </button>
+                      <button
+                        onClick={() => openManageParticipants(batch)}
+                        className="px-3 py-1.5 bg-secondary-container text-on-secondary-container text-xs font-bold rounded-lg hover:opacity-80 transition-colors flex items-center gap-1"
+                      >
+                        <MaterialIcon name="group_add" className="text-sm" />
+                        Participants
+                      </button>
+                    </div>
+                    {/* Danger zone — visually separated from primary actions */}
+                    <div className="w-full flex justify-start md:justify-end pt-1.5 border-t border-dashed border-error/25">
+                      <button
+                        onClick={() => handleDelete(batch.id)}
+                        className="px-3 py-1.5 bg-error-container/20 text-error text-xs font-bold rounded-lg hover:bg-error-container/30 transition-colors flex items-center gap-1.5"
+                      >
+                        <MaterialIcon name="delete" className="text-sm" />
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

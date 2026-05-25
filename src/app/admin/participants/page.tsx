@@ -392,19 +392,42 @@ export default function ParticipantsPage() {
                 <span className="text-sm text-on-surface">{p.xp}</span>
                 <span className="text-sm text-primary font-bold">{p.total_score}</span>
                 <span className="text-sm text-on-surface">{p.quizzes_taken}</span>
-                <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => handleEdit(p)} className={btnSecondary} title="Edit">
-                    <MaterialIcon name="edit" className="text-sm" />
-                  </button>
-                  <button onClick={() => handleResetPassword(p.id, p.name)} className={btnSecondary} title="Reset password ke user123">
-                    <MaterialIcon name="lock_reset" className="text-sm" />
-                  </button>
-                  <button onClick={() => handleResetProgress(p.id, p.name)} className={btnDanger} title="Reset progress">
-                    <MaterialIcon name="restart_alt" className="text-sm" />
-                  </button>
-                  <button onClick={() => handleDelete(p.id, p.name)} className={btnDanger} title="Hapus">
-                    <MaterialIcon name="delete" className="text-sm" />
-                  </button>
+                {/* Action button groups — Gestalt Law of Common Region:
+                    neutral actions share one pill, destructive share another */}
+                <div className="flex items-center gap-1.5 flex-nowrap">
+                  {/* Safe actions */}
+                  <div className="flex items-center bg-surface-container-high rounded-lg p-0.5 gap-0.5">
+                    <button
+                      onClick={() => handleEdit(p)}
+                      className="p-1.5 rounded-md text-on-surface hover:bg-surface-container transition-colors"
+                      title="Edit"
+                    >
+                      <MaterialIcon name="edit" className="text-sm" />
+                    </button>
+                    <button
+                      onClick={() => handleResetPassword(p.id, p.name)}
+                      className="p-1.5 rounded-md text-on-surface hover:bg-surface-container transition-colors"
+                      title="Reset password">
+                      <MaterialIcon name="lock_reset" className="text-sm" />
+                    </button>
+                  </div>
+                  {/* Destructive actions */}
+                  <div className="flex items-center bg-error-container/20 rounded-lg p-0.5 gap-0.5">
+                    <button
+                      onClick={() => handleResetProgress(p.id, p.name)}
+                      className="p-1.5 rounded-md text-error hover:bg-error-container/40 transition-colors"
+                      title="Reset progress"
+                    >
+                      <MaterialIcon name="restart_alt" className="text-sm" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(p.id, p.name)}
+                      className="p-1.5 rounded-md text-error hover:bg-error-container/40 transition-colors"
+                      title="Hapus"
+                    >
+                      <MaterialIcon name="delete" className="text-sm" />
+                    </button>
+                  </div>
                 </div>
                 {resetPwResult?.id === p.id && (
                   <p className={`text-xs font-semibold mt-1 ${resetPwResult.ok ? "text-green-600" : "text-rose-600"}`}>
