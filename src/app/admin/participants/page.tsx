@@ -41,17 +41,22 @@ export default function ParticipantsPage() {
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<ParticipantForm>();
 
-  const loadParticipants = useCallback(async () => {
+  const loadParticipants = useCallback(async (signal?: AbortSignal) => {
     try {
-      const data = await getParticipants();
+      const data = await getParticipants(signal);
       setParticipants(data);
+    } catch {
+      // timeout/network error — loading cleared in finally
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadParticipants();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    loadParticipants(controller.signal);
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [loadParticipants]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

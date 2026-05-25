@@ -10,13 +10,14 @@ export interface LeaderboardEntry {
   avatar_url: string | null;
 }
 
-export async function getLeaderboard(limit = 50): Promise<LeaderboardEntry[]> {
-  const { data, error } = await supabase
+export async function getLeaderboard(limit = 50, signal?: AbortSignal): Promise<LeaderboardEntry[]> {
+  const query = supabase
     .from("participants")
     .select("id, name, level, xp, total_score, quizzes_taken, avatar_url")
     .in("role", ["participant", "supervisor"])
     .order("total_score", { ascending: false })
     .limit(limit);
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
 
   if (error) throw error;
   return data ?? [];

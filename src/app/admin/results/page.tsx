@@ -38,33 +38,42 @@ export default function ResultsPage() {
   const [drillAnswers, setDrillAnswers] = useState<ParticipantAnswerDetail[]>([]);
   const [loadingDrill, setLoadingDrill] = useState(false);
 
-  const loadBatches = useCallback(async () => {
+  const loadBatches = useCallback(async (signal?: AbortSignal) => {
     try {
-      const data = await getBatches();
+      const data = await getBatches(signal);
       setBatches(data);
+    } catch {
+      // timeout/network error — loading cleared in finally
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadBatches();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    loadBatches(controller.signal);
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [loadBatches]);
 
-  const loadSessions = useCallback(async (batchId?: string) => {
+  const loadSessions = useCallback(async (batchId?: string, signal?: AbortSignal) => {
     setLoadingSessions(true);
     try {
-      const data = await getExamSessions(batchId || undefined);
+      const data = await getExamSessions(batchId, signal);
       setSessions(data);
+    } catch {
+      setSessions([]);
     } finally {
       setLoadingSessions(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!loading) {
-      loadSessions(selectedBatchId || undefined);
-    }
+    if (loading) return;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    loadSessions(selectedBatchId || undefined, controller.signal);
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [selectedBatchId, loading, loadSessions]);
 
   const handleResetResults = async () => {

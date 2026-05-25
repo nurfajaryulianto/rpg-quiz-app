@@ -19,17 +19,21 @@ function LeaderboardPage() {
     setLoading(true);
     setError(null);
 
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error("Koneksi lambat — database mungkin sedang bangun dari mode tidur. Klik Coba Lagi.")),
-        15000
-      )
-    );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
 
-    Promise.race([getLeaderboard(100), timeout])
-      .then((data) => setPlayers(data as LeaderboardEntry[]))
-      .catch((e: Error) => setError(e.message))
+    getLeaderboard(100, controller.signal)
+      .then((data) => setPlayers(data))
+      .catch((e: Error) => {
+        if (e.name === "AbortError" || e.message?.includes("abort")) {
+          setError("Koneksi lambat — database mungkin sedang bangun dari mode tidur. Klik Coba Lagi.");
+        } else {
+          setError(e.message);
+        }
+      })
       .finally(() => setLoading(false));
+
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [retryCount]);
 
   if (loading) {

@@ -15,24 +15,29 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
 
-  const loadBatches = useCallback(async () => {
+  const loadBatches = useCallback(async (signal?: AbortSignal) => {
     try {
-      const data = await getBatches();
+      const data = await getBatches(signal);
       setBatches(data);
+    } catch {
+      // timeout/network error — loading cleared in finally
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadBatches();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    loadBatches(controller.signal);
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [loadBatches]);
 
-  const loadAnalytics = useCallback(async (batchId: string) => {
+  const loadAnalytics = useCallback(async (batchId: string, signal?: AbortSignal) => {
     if (!batchId) { setAnalytics(null); return; }
     setLoadingAnalytics(true);
     try {
-      const data = await getBatchAnalytics(batchId);
+      const data = await getBatchAnalytics(batchId, signal);
       setAnalytics(data);
     } catch (err) {
       console.error(err);
@@ -42,8 +47,11 @@ export default function AnalyticsPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedBatchId) loadAnalytics(selectedBatchId);
-    else setAnalytics(null);
+    if (!selectedBatchId) { setAnalytics(null); return; }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    loadAnalytics(selectedBatchId, controller.signal);
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [selectedBatchId, loadAnalytics]);
 
   const inputClasses =

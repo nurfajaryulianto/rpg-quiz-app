@@ -33,10 +33,10 @@ export default function SupervisorPage() {
   const [filterGraded, setFilterGraded] = useState<"ungraded" | "all">("ungraded");
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const loadTasks = useCallback(async () => {
+  const loadTasks = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const query = supabase
         .from("answers")
         .select(`
           id,
@@ -51,6 +51,7 @@ export default function SupervisorPage() {
           batches (name)
         `)
         .not("essay_text", "is", null);
+      const { data, error } = await (signal ? query.abortSignal(signal) : query);
 
       if (error) throw error;
 
@@ -86,6 +87,8 @@ export default function SupervisorPage() {
         });
 
       setTasks(flat);
+    } catch {
+      // timeout/network error — tasks stay empty
     } finally {
       setLoading(false);
     }
@@ -97,7 +100,10 @@ export default function SupervisorPage() {
       router.replace("/");
       return;
     }
-    loadTasks();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    loadTasks(controller.signal);
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [participant, router, loadTasks]);
 
   // Keep a stable ref to loadTasks so the realtime channel

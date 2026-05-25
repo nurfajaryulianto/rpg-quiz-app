@@ -46,10 +46,13 @@ export default function AdminDashboard() {
   const [recentActivity, setRecentActivity] = useState<ActivityItem[] | null>(null);
 
   useEffect(() => {
-    getAdminStats().then(setStats).catch(() => setStats({
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    getAdminStats(controller.signal).then(setStats).catch(() => setStats({
       totalBatches: 0, totalParticipants: 0, totalQuestions: 0, activeBatches: 0, completedExams: 0,
     }));
-    getRecentActivity().then(setRecentActivity).catch(() => setRecentActivity([]));
+    getRecentActivity(controller.signal).then(setRecentActivity).catch(() => setRecentActivity([]));
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, []);
 
   const statCards = [

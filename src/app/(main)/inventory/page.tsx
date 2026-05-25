@@ -20,17 +20,23 @@ function InventoryPage() {
   useEffect(() => {
     if (!participant) return;
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+
     supabase
       .from("exam_sessions")
       .select("*, batches(name)")
       .eq("participant_id", participant.id)
       .order("started_at", { ascending: false })
+      .abortSignal(controller.signal)
       .then(({ data }) => {
         setSessions((data ?? []) as unknown as SessionWithBatch[]);
         setLoading(false);
       }, () => {
         setLoading(false);
       });
+
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [participant]);
 
   if (loading) {

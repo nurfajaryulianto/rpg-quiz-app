@@ -98,18 +98,23 @@ export default function BatchesPage() {
 
   const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<BatchForm>();
 
-  const loadBatches = useCallback(async () => {
+  const loadBatches = useCallback(async (signal?: AbortSignal) => {
     try {
-      const [data, archives] = await Promise.all([getBatches(), getArchives()]);
+      const [data, archives] = await Promise.all([getBatches(signal), getArchives(signal)]);
       setBatches(data);
       setAllArchives(archives);
+    } catch {
+      // timeout/network error — loading cleared in finally
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadBatches();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    loadBatches(controller.signal);
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [loadBatches]);
 
   const toggleBatchStats = async (batchId: string) => {

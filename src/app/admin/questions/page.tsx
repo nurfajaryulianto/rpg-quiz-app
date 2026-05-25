@@ -80,37 +80,46 @@ export default function QuestionsPage() {
   const checkboxOptionsCount = selectedBatch?.checkbox_options_count ?? 3;
   const OPTION_LABELS = ["A", "B", "C", "D", "E", "F", "G", "H"] as const;
 
-  const loadBatches = useCallback(async () => {
+  const loadBatches = useCallback(async (signal?: AbortSignal) => {
     try {
-      const data = await getBatches();
+      const data = await getBatches(signal);
       setBatches(data);
+    } catch {
+      // timeout/network error — loading cleared in finally
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadBatches();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    loadBatches(controller.signal);
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [loadBatches]);
 
-  const loadQuestions = useCallback(async (batchId: string) => {
+  const loadQuestions = useCallback(async (batchId: string, signal?: AbortSignal) => {
     if (!batchId) {
       setQuestions([]);
       return;
     }
     setLoading(true);
     try {
-      const data = await getQuestionsByBatch(batchId);
+      const data = await getQuestionsByBatch(batchId, signal);
       setQuestions(data);
+    } catch {
+      setQuestions([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (selectedBatchId) {
-      loadQuestions(selectedBatchId);
-    }
+    if (!selectedBatchId) return;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    loadQuestions(selectedBatchId, controller.signal);
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [selectedBatchId, loadQuestions]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

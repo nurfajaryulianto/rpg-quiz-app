@@ -90,22 +90,32 @@ export default function QuestionArchivesPage() {
   // Checkbox uses A-F (6 options max)
   const checkboxCount = 4;
 
-  const loadArchives = useCallback(async () => {
-    try { setArchives(await getArchives()); }
+  const loadArchives = useCallback(async (signal?: AbortSignal) => {
+    try { setArchives(await getArchives(signal)); }
+    catch { /* timeout/network */ }
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { loadArchives(); }, [loadArchives]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    loadArchives(controller.signal);
+    return () => { clearTimeout(timeoutId); controller.abort(); };
+  }, [loadArchives]);
 
-  const loadQuestions = useCallback(async (archiveId: string) => {
+  const loadQuestions = useCallback(async (archiveId: string, signal?: AbortSignal) => {
     setLoadingQs(true);
-    try { setQuestions(await getArchiveQuestions(archiveId)); }
+    try { setQuestions(await getArchiveQuestions(archiveId, signal)); }
+    catch { setQuestions([]); }
     finally { setLoadingQs(false); }
   }, []);
 
   useEffect(() => {
-    if (selectedArchive) loadQuestions(selectedArchive.id);
-    else setQuestions([]);
+    if (!selectedArchive) { setQuestions([]); return; }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    loadQuestions(selectedArchive.id, controller.signal);
+    return () => { clearTimeout(timeoutId); controller.abort(); };
   }, [selectedArchive, loadQuestions]);
 
   // ---- Archive CRUD ----

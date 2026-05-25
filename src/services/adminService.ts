@@ -7,11 +7,12 @@ import { shuffleArray } from "@/utils/gamification";
 // BATCHES
 // ============================================
 
-export async function getBatches(): Promise<Batch[]> {
-  const { data, error } = await supabase
+export async function getBatches(signal?: AbortSignal): Promise<Batch[]> {
+  const query = supabase
     .from("batches")
     .select("*")
     .order("created_at", { ascending: false });
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
 
   if (error) throw error;
   const batches = data ?? [];
@@ -96,12 +97,13 @@ export async function deleteBatch(id: string) {
 // QUESTIONS
 // ============================================
 
-export async function getQuestionsByBatch(batchId: string) {
-  const { data, error } = await supabase
+export async function getQuestionsByBatch(batchId: string, signal?: AbortSignal) {
+  const query = supabase
     .from("questions")
     .select("*, options(*)")
     .eq("batch_id", batchId)
     .order("order_index", { ascending: true });
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
 
   if (error) throw error;
   return (data ?? []) as QuestionWithOptions[];
@@ -283,11 +285,12 @@ export async function deleteQuestionsByBatch(batchId: string) {
 // PARTICIPANTS
 // ============================================
 
-export async function getParticipants(): Promise<Participant[]> {
-  const { data, error } = await supabase
+export async function getParticipants(signal?: AbortSignal): Promise<Participant[]> {
+  const query = supabase
     .from("participants")
     .select("*")
     .order("total_score", { ascending: false });
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
 
   if (error) throw error;
   return data ?? [];
@@ -413,7 +416,7 @@ export async function deleteParticipant(id: string) {
 // EXAM SESSIONS / RESULTS
 // ============================================
 
-export async function getExamSessions(batchId?: string): Promise<(ExamSession & { participant_name?: string; batch_name?: string })[]> {
+export async function getExamSessions(batchId?: string, signal?: AbortSignal): Promise<(ExamSession & { participant_name?: string; batch_name?: string })[]> {
   let query = supabase
     .from("exam_sessions")
     .select("*, participants(name), batches(name)")
@@ -421,6 +424,9 @@ export async function getExamSessions(batchId?: string): Promise<(ExamSession & 
 
   if (batchId) {
     query = query.eq("batch_id", batchId);
+  }
+  if (signal) {
+    query = query.abortSignal(signal);
   }
 
   const { data, error } = await query;
@@ -455,13 +461,13 @@ export async function resetBatchResults(batchId: string) {
 // DASHBOARD STATS
 // ============================================
 
-export async function getAdminStats() {
+export async function getAdminStats(signal?: AbortSignal) {
   const [batches, participants, questions, activeBatches, examSessions] = await Promise.all([
-    supabase.from("batches").select("id", { count: "exact" }),
-    supabase.from("participants").select("id", { count: "exact" }).eq("role", "participant"),
-    supabase.from("questions").select("id", { count: "exact" }),
-    supabase.from("batches").select("id", { count: "exact" }).eq("is_active", true),
-    supabase.from("exam_sessions").select("id", { count: "exact" }).eq("status", "completed"),
+    signal ? supabase.from("batches").select("id", { count: "exact" }).abortSignal(signal) : supabase.from("batches").select("id", { count: "exact" }),
+    signal ? supabase.from("participants").select("id", { count: "exact" }).eq("role", "participant").abortSignal(signal) : supabase.from("participants").select("id", { count: "exact" }).eq("role", "participant"),
+    signal ? supabase.from("questions").select("id", { count: "exact" }).abortSignal(signal) : supabase.from("questions").select("id", { count: "exact" }),
+    signal ? supabase.from("batches").select("id", { count: "exact" }).eq("is_active", true).abortSignal(signal) : supabase.from("batches").select("id", { count: "exact" }).eq("is_active", true),
+    signal ? supabase.from("exam_sessions").select("id", { count: "exact" }).eq("status", "completed").abortSignal(signal) : supabase.from("exam_sessions").select("id", { count: "exact" }).eq("status", "completed"),
   ]);
 
   return {
@@ -473,12 +479,13 @@ export async function getAdminStats() {
   };
 }
 
-export async function getRecentActivity() {
-  const { data, error } = await supabase
+export async function getRecentActivity(signal?: AbortSignal) {
+  const query = supabase
     .from("exam_sessions")
     .select("*, participants(name), batches(name)")
     .order("started_at", { ascending: false })
     .limit(10);
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
 
   if (error) throw error;
 
@@ -664,14 +671,11 @@ export interface BatchAnalytics {
   difficultyBreakdown: { difficulty: string; count: number; accuracyRate: number }[];
 }
 
-export async function getBatchAnalytics(batchId: string): Promise<BatchAnalytics> {
+export async function getBatchAnalytics(batchId: string, signal?: AbortSignal): Promise<BatchAnalytics> {
   const [sessionsRes, questionsRes, answersRes] = await Promise.all([
-    supabase.from("exam_sessions").select("*").eq("batch_id", batchId),
-    supabase.from("questions").select("*, options(*)").eq("batch_id", batchId).order("order_index", { ascending: true }),
-    supabase
-      .from("answers")
-      .select("question_id, is_correct, time_taken_seconds")
-      .eq("batch_id", batchId),
+    signal ? supabase.from("exam_sessions").select("*").eq("batch_id", batchId).abortSignal(signal) : supabase.from("exam_sessions").select("*").eq("batch_id", batchId),
+    signal ? supabase.from("questions").select("*, options(*)").eq("batch_id", batchId).order("order_index", { ascending: true }).abortSignal(signal) : supabase.from("questions").select("*, options(*)").eq("batch_id", batchId).order("order_index", { ascending: true }),
+    signal ? supabase.from("answers").select("question_id, is_correct, time_taken_seconds").eq("batch_id", batchId).abortSignal(signal) : supabase.from("answers").select("question_id, is_correct, time_taken_seconds").eq("batch_id", batchId),
   ]);
 
   if (sessionsRes.error) throw sessionsRes.error;
@@ -1064,11 +1068,12 @@ export async function exportBatchToGoogleSheets(batchId: string, spreadsheetId?:
 // QUESTION ARCHIVES (Bank Soal)
 // ============================================
 
-export async function getArchives(): Promise<QuestionArchive[]> {
-  const { data, error } = await supabase
+export async function getArchives(signal?: AbortSignal): Promise<QuestionArchive[]> {
+  const query = supabase
     .from("question_archives")
     .select("*")
     .order("created_at", { ascending: false });
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
   if (error) throw error;
   return data ?? [];
 }
@@ -1099,12 +1104,13 @@ export async function deleteArchive(id: string) {
   if (error) throw error;
 }
 
-export async function getArchiveQuestions(archiveId: string): Promise<ArchiveQuestionWithOptions[]> {
-  const { data, error } = await supabase
+export async function getArchiveQuestions(archiveId: string, signal?: AbortSignal): Promise<ArchiveQuestionWithOptions[]> {
+  const query = supabase
     .from("archive_questions")
     .select("*, archive_options(*)")
     .eq("archive_id", archiveId)
     .order("order_index", { ascending: true });
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
   if (error) throw error;
   return (data ?? []) as unknown as ArchiveQuestionWithOptions[];
 }
