@@ -86,15 +86,40 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      // getSession() can hang indefinitely when the stored access token is
+      // expired and Supabase tries to refresh it over a stale TCP connection
+      // (common when coming back to an idle browser tab).  Race it against an
+      // 8-second timeout so we always unblock the loading screen.
+      const sessionResult = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<{ data: { session: null } }>((resolve) =>
+          setTimeout(() => resolve({ data: { session: null } }), 8000)
+        ),
+      ]);
+
+      const session = sessionResult.data.session;
 
       if (session?.user) {
-        const { data: participant } = await supabase
-          .from("participants")
-          .select("id, user_id, name, email, nik, role, area, jabatan, sub_dept, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, current_session_id, created_at, updated_at")
-          .eq("user_id", session.user.id)
-          .limit(1)
-          .maybeSingle();
+        // Add an abort timeout to the DB query for the same reason: a stale
+        // connection would cause this fetch to hang after idle time.
+        const controller = new AbortController();
+        const dbTimeoutId = setTimeout(() => controller.abort(), 8000);
+
+        let participant: Participant | null = null;
+        try {
+          const { data } = await supabase
+            .from("participants")
+            .select("id, user_id, name, email, nik, role, area, jabatan, sub_dept, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, current_session_id, created_at, updated_at")
+            .eq("user_id", session.user.id)
+            .limit(1)
+            .abortSignal(controller.signal)
+            .maybeSingle();
+          participant = data;
+        } catch {
+          // AbortError (timeout) or network error — treat as no participant found
+        } finally {
+          clearTimeout(dbTimeoutId);
+        }
 
         if (participant) {
           // Single-device check: if we have a stored nonce but it doesn't match
@@ -140,12 +165,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       // TOKEN_REFRESHED or USER_UPDATED — re-sync participant data
       if (session?.user) {
-        const { data: freshParticipant } = await supabase
-          .from("participants")
-          .select("id, user_id, name, email, nik, role, area, jabatan, sub_dept, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, current_session_id, created_at, updated_at")
-          .eq("user_id", session.user.id)
-          .limit(1)
-          .maybeSingle();
+        const controller = new AbortController();
+        const dbTimeoutId = setTimeout(() => controller.abort(), 8000);
+
+        let freshParticipant: Participant | null = null;
+        try {
+          const { data } = await supabase
+            .from("participants")
+            .select("id, user_id, name, email, nik, role, area, jabatan, sub_dept, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, current_session_id, created_at, updated_at")
+            .eq("user_id", session.user.id)
+            .limit(1)
+            .abortSignal(controller.signal)
+            .maybeSingle();
+          freshParticipant = data;
+        } catch {
+          // Timeout or network error — keep existing participant (handled below)
+        } finally {
+          clearTimeout(dbTimeoutId);
+        }
 
         set({
           user: session.user,
