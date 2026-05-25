@@ -13,6 +13,26 @@ function getSupabase(): SupabaseClient<Database> {
         persistSession: true,
         detectSessionInUrl: false,
       },
+      global: {
+        // Apply a hard 15-second deadline to every Supabase HTTP request.
+        // This prevents stale TCP connections (common after an idle tab returns)
+        // from hanging auth calls (signInWithPassword, token refresh, etc.) and
+        // DB queries that have no per-call AbortController indefinitely.
+        // Per-call AbortController signals (used in page fetches, 12 s) are
+        // forwarded as-is and win if they fire before the 15 s global deadline.
+        fetch: async (url: RequestInfo | URL, options?: RequestInit) => {
+          const timeoutCtrl = new AbortController();
+          const timeoutId = setTimeout(() => timeoutCtrl.abort(), 15_000);
+          try {
+            return await fetch(url, {
+              ...options,
+              signal: options?.signal ?? timeoutCtrl.signal,
+            });
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        },
+      },
       realtime: {
         params: {
           eventsPerSecond: 10,

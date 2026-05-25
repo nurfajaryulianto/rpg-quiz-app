@@ -128,9 +128,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const dbNonce = participant.current_session_id;
 
           if (storedNonce && dbNonce && storedNonce !== dbNonce) {
-            // Stale session — clear local state and sign out silently
+            // Stale session — clear local state and sign out silently.
+            // Wrap signOut() so a stale/timed-out connection can't prevent
+            // isLoading from being cleared in the outer finally block.
             localStorage.removeItem(nonceKey(participant.id));
-            await supabase.auth.signOut();
+            try {
+              await supabase.auth.signOut();
+            } catch {
+              // signOut failed (e.g. network timeout) — clear state anyway
+            }
             set({ user: null, participant: null });
             return;
           }
@@ -145,6 +151,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           set({ user: session.user, participant: null });
         }
       }
+    } catch {
+      // Catches any error that escapes the inner blocks — most likely an AbortError
+      // from the global 15 s fetch timeout firing on getSession() before our
+      // Promise.race 8 s safety resolves. Treat as unauthenticated and unblock.
     } finally {
       set({ isLoading: false });
     }
@@ -243,6 +253,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         }
       }
+    } catch (err) {
+      // Translate network timeout (AbortError from the global 15 s fetch deadline)
+      // into a readable message. All other errors are re-thrown unchanged so the
+      // login form can display them (e.g. invalid credentials).
+      if (
+        err instanceof Error &&
+        (err.name === "AbortError" || err.message.toLowerCase().includes("abort"))
+      ) {
+        throw new Error(
+          "Koneksi bermasalah atau timeout. Coba refresh halaman dan login kembali."
+        );
+      }
+      throw err;
     } finally {
       set({ isLoading: false });
     }
