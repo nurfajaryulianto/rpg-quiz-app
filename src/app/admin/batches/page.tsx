@@ -235,8 +235,17 @@ export default function BatchesPage() {
     if (!confirm("Generate ulang soal dari bank soal? Soal yang sudah ada di batch ini akan diganti.")) return;
     setGenerating(true);
     try {
-      const { total, totalScore } = await generateBatchQuestionsFromArchives(editingId);
-      alert(`Berhasil generate ${total} soal dengan total skor ${totalScore}.`);
+      // Always persist latest settings before generating so changes in the form
+      // are reflected even if the admin has not clicked "Update" yet.
+      await setBatchArchives(editingId, selectedArchiveIds);
+      await setBatchQuestionSettings(editingId, questionSettings);
+
+      const { total, totalScore, warnings } = await generateBatchQuestionsFromArchives(editingId);
+      let msg = `Berhasil generate ${total} soal dengan total skor ${totalScore}.`;
+      if (warnings.length > 0) {
+        msg += `\n\nPeringatan:\n${warnings.map((w) => `• ${w}`).join("\n")}`;
+      }
+      alert(msg);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal generate soal");
     } finally {

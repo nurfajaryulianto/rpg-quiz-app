@@ -1236,9 +1236,26 @@ export async function setBatchQuestionSettings(
 
 // ---- Generate questions from archives ----
 
+// Fixed ordering for question types — keeps exam sections consistent.
+const QTYPE_ORDER: Record<string, number> = {
+  multiple_choice: 0,
+  true_false: 1,
+  binary: 2,
+  checkbox: 3,
+  essay: 4,
+};
+
+const QTYPE_LABELS: Record<string, string> = {
+  multiple_choice: "Pilihan Ganda",
+  true_false: "Benar/Salah",
+  binary: "Ya/Tidak",
+  checkbox: "Checkbox",
+  essay: "Essay",
+};
+
 export async function generateBatchQuestionsFromArchives(
   batchId: string
-): Promise<{ total: number; totalScore: number }> {
+): Promise<{ total: number; totalScore: number; warnings: string[] }> {
   // 1. Fetch linked archive IDs
   const archiveIds = await getBatchArchiveIds(batchId);
   if (archiveIds.length === 0) throw new Error("Tidak ada bank soal yang dipilih untuk batch ini.");
@@ -1248,13 +1265,19 @@ export async function generateBatchQuestionsFromArchives(
   const activeSettings = settings.filter((s) => s.count > 0);
   if (activeSettings.length === 0) throw new Error("Belum ada konfigurasi jumlah soal. Atur 'Pengaturan Soal' terlebih dahulu.");
 
+  // Sort settings by fixed type order so exam sections are always consistent.
+  const orderedSettings = [...activeSettings].sort(
+    (a, b) => (QTYPE_ORDER[a.question_type] ?? 99) - (QTYPE_ORDER[b.question_type] ?? 99)
+  );
+
   // 3. Delete existing questions for this batch (fresh generation)
   await deleteQuestionsByBatch(batchId);
 
   let orderIndex = 0;
   let totalScore = 0;
+  const warnings: string[] = [];
 
-  for (const setting of activeSettings) {
+  for (const setting of orderedSettings) {
     // 4. Fetch questions from archives filtered by type + difficulties
     const diffs = (setting.include_difficulties ?? ["easy", "medium", "hard", "very_hard"]).filter(Boolean) as ("easy" | "medium" | "hard" | "very_hard")[];
     const { data: rawQuestions, error } = await supabase
@@ -1266,7 +1289,11 @@ export async function generateBatchQuestionsFromArchives(
 
     if (error) throw error;
     const pool = (rawQuestions ?? []) as unknown as ArchiveQuestionWithOptions[];
-    if (pool.length === 0) continue;
+    if (pool.length === 0) {
+      const label = QTYPE_LABELS[setting.question_type] ?? setting.question_type;
+      warnings.push(`Tidak ada soal "${label}" di bank soal dengan filter tingkat kesulitan yang dipilih`);
+      continue;
+    }
 
     // 5. Shuffle and pick
     const shuffled = shuffleArray([...pool]);
@@ -1305,7 +1332,7 @@ export async function generateBatchQuestionsFromArchives(
     }
   }
 
-  return { total: orderIndex, totalScore };
+  return { total: orderIndex, totalScore, warnings };
 }
 
 // Count available questions per type from selected archives (for UI feedback)

@@ -124,17 +124,31 @@ export async function startExamSession(
   const attemptNumber = completedCount + 1;
   const isLeaderboardEligible = attemptNumber === 1;
 
-  // Build question_order for randomised batches
+  // Build question_order for randomised batches.
+  // Questions are shuffled *within* each type group so that all MCQ appear
+  // together, all Binary appear together, etc.  This keeps the exam sections
+  // predictable while still randomising question order.
   let questionOrder: string[] | null = null;
   if (batch.randomize_questions) {
     const { data: qs } = await supabase
       .from("questions")
-      .select("id")
+      .select("id, question_type")
       .eq("batch_id", batchId)
       .order("order_index", { ascending: true });
 
     if (qs && qs.length > 0) {
-      questionOrder = shuffleArray(qs.map((q: { id: string }) => q.id));
+      const TYPE_ORDER = ["multiple_choice", "true_false", "binary", "checkbox", "essay"];
+      // Group by type preserving the canonical type order
+      const grouped = new Map<string, string[]>();
+      for (const q of qs as { id: string; question_type: string }[]) {
+        if (!grouped.has(q.question_type)) grouped.set(q.question_type, []);
+        grouped.get(q.question_type)!.push(q.id);
+      }
+      questionOrder = TYPE_ORDER.flatMap((t) => shuffleArray(grouped.get(t) ?? []));
+      // Append any unknown types at the end (future-proof)
+      for (const [type, ids] of grouped) {
+        if (!TYPE_ORDER.includes(type)) questionOrder!.push(...shuffleArray(ids));
+      }
     }
   }
 

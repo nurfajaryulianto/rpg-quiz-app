@@ -485,17 +485,74 @@ function ExamPage() {
             Navigasi Soal
           </p>
           <div className="flex-1 overflow-y-auto p-2">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
-              {questions.map((q, idx) => (
-                <button
-                  key={q.id}
-                  onClick={() => { storeRef.current.markQuestionStart(q.id); storeRef.current.goToQuestion(idx); }}
-                  className={`w-full aspect-square rounded-lg text-xs font-bold transition-all ${getNavBtnClass(idx, q.id)}`}
-                >
-                  {idx + 1}
-                </button>
-              ))}
-            </div>
+            {(() => {
+              const TYPE_LABELS: Record<string, string> = {
+                multiple_choice: "Pilihan Ganda",
+                true_false: "Benar/Salah",
+                binary: "Ya/Tidak",
+                checkbox: "Checkbox",
+                essay: "Essay",
+              };
+              const questionTypes = new Set(questions.map((q) => q.question_type));
+              const hasMultipleTypes = questionTypes.size > 1;
+
+              if (!hasMultipleTypes) {
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+                    {questions.map((q, idx) => (
+                      <button
+                        key={q.id}
+                        onClick={() => { storeRef.current.markQuestionStart(q.id); storeRef.current.goToQuestion(idx); }}
+                        className={`w-full aspect-square rounded-lg text-xs font-bold transition-all ${getNavBtnClass(idx, q.id)}`}
+                      >
+                        {idx + 1}
+                      </button>
+                    ))}
+                  </div>
+                );
+              }
+
+              // Group consecutive questions by type (preserves exam section order)
+              type Group = { type: string; startIdx: number; qs: typeof questions };
+              const groups: Group[] = [];
+              questions.forEach((q, idx) => {
+                const last = groups[groups.length - 1];
+                if (last && last.type === q.question_type) {
+                  last.qs.push(q);
+                } else {
+                  groups.push({ type: q.question_type, startIdx: idx, qs: [q] });
+                }
+              });
+
+              return (
+                <div className="space-y-2">
+                  {groups.map((group) => (
+                    <div key={`${group.type}-${group.startIdx}`}>
+                      <p className="text-[9px] font-bold text-on-surface-variant/60 uppercase tracking-wide mb-1 hidden md:block">
+                        {TYPE_LABELS[group.type] ?? group.type}
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+                        {group.qs.map((q, i) => {
+                          const globalIdx = group.startIdx + i;
+                          return (
+                            <button
+                              key={q.id}
+                              onClick={() => { storeRef.current.markQuestionStart(q.id); storeRef.current.goToQuestion(globalIdx); }}
+                              className={`w-full aspect-square rounded-lg text-xs font-bold transition-all flex flex-col items-center justify-center leading-none gap-0.5 ${getNavBtnClass(globalIdx, q.id)}`}
+                            >
+                              <span>{globalIdx + 1}</span>
+                              <span className="text-[8px] opacity-70 font-normal hidden md:block">
+                                {TYPE_LABELS[q.question_type]?.slice(0, 2) ?? "??"}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
           <div className="p-2 border-t border-outline/20 hidden md:block space-y-1 text-xs text-on-surface-variant">
             <div className="flex items-center gap-1.5">
@@ -537,14 +594,22 @@ function ExamPage() {
                           {currentQuestion.category}
                         </span>
                       )}
-                      {currentQuestion.question_type !== "multiple_choice" && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-surface-variant text-on-surface-variant capitalize">
-                          {currentQuestion.question_type === "true_false" ? "Benar/Salah" :
-                           currentQuestion.question_type === "binary" ? "Ya/Tidak" :
-                           currentQuestion.question_type === "checkbox" ? "Pilih Semua Benar" :
-                           "Essay"}
-                        </span>
-                      )}
+                      {(() => {
+                        const TYPE_BADGE: Record<string, string> = {
+                          multiple_choice: "Pilihan Ganda",
+                          true_false: "Benar/Salah",
+                          binary: "Ya/Tidak",
+                          checkbox: "Pilih Semua Benar",
+                          essay: "Essay",
+                        };
+                        const hasMultipleTypes = new Set(questions.map((q) => q.question_type)).size > 1;
+                        if (!hasMultipleTypes && currentQuestion.question_type === "multiple_choice") return null;
+                        return (
+                          <span className="text-xs px-2 py-0.5 rounded bg-surface-variant text-on-surface-variant">
+                            {TYPE_BADGE[currentQuestion.question_type] ?? currentQuestion.question_type}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
