@@ -346,17 +346,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
           if (!nonceErr) {
             localStorage.setItem(nonceKey(participant.id), sessionValue);
-            subscribeGuardChannel(participant.id, sessionValue);
 
-            // Broadcast session_taken so any lingering old session is kicked in real-time.
-            // Small delay gives the subscription time to establish before sending.
-            setTimeout(() => {
-              guardChannel?.send({
-                type: "broadcast",
-                event: "session_taken",
-                payload: { ip: clientIp },
-              });
-            }, 600);
+            // Broadcast session_taken SEBELUM subscribe guard channel utama,
+            // menggunakan channel sementara agar tidak bergantung pada
+            // status WebSocket guardChannel yang belum tentu SUBSCRIBED.
+            // httpSend() dipakai eksplisit — ini one-shot broadcast via REST,
+            // tidak butuh persistent WebSocket connection.
+            const kickCh = supabase.channel(`session-guard:${participant.id}`);
+            kickCh.subscribe(async (status) => {
+              if (status === "SUBSCRIBED") {
+                await kickCh.send({
+                  type: "broadcast",
+                  event: "session_taken",
+                  payload: { ip: clientIp },
+                });
+                supabase.removeChannel(kickCh);
+              }
+            });
+
+            subscribeGuardChannel(participant.id, sessionValue);
           }
         }
       }
@@ -424,12 +432,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Dismiss the banner immediately
     set({ sessionChallenge: null });
 
-    // Send response via guard channel so the new device's login() resolves
-    if (guardChannel) {
-      await guardChannel.send({
-        type: "broadcast",
-        event: "challenge_response",
-        payload: { challengeId: challenge.challengeId, action },
+    // Kirim response via channel sementara dengan cek status SUBSCRIBED,
+    // karena guardChannel utama bisa saja dalam status reconnecting.
+    // Menggunakan channel nama yang sama agar diterima subscriber yang tepat.
+    const participant = get().participant;
+    if (participant) {
+      const responseCh = supabase.channel(`session-guard:${participant.id}`);
+      responseCh.subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await responseCh.send({
+            type: "broadcast",
+            event: "challenge_response",
+            payload: { challengeId: challenge.challengeId, action },
+          });
+          supabase.removeChannel(responseCh);
+        }
       });
     }
 
