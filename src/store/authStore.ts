@@ -281,24 +281,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      // FIX: Set isLoading: true saat TOKEN_REFRESHED atau USER_UPDATED,
-      // agar halaman yang bergantung pada auth tidak render dengan state stale
-      // selama re-fetch participant (bisa sampai 8 detik).
+      // TOKEN_REFRESHED or USER_UPDATED — re-sync participant data silently
+      // (do NOT set isLoading here — it would unmount children via AuthProvider).
       if (session?.user) {
-        set({ isLoading: true });
-        try {
-          const freshParticipant = await fetchParticipantByUserId(session.user.id);
-          set({
-            user: session.user,
-            // If the re-fetch fails (e.g. network hiccup after idle), keep the
-            // current participant so pages don't get stuck on the error screen.
-            participant: freshParticipant ?? get().participant,
-          });
-        } finally {
-          // Always clear isLoading regardless of success or error,
-          // so pages are never left in a permanent loading state.
-          set({ isLoading: false });
-        }
+        const freshParticipant = await fetchParticipantByUserId(session.user.id);
+        set({
+          user: session.user,
+          // If re-fetch fails (network hiccup), keep current participant so pages don't break.
+          participant: freshParticipant ?? get().participant,
+        });
       }
     });
 
