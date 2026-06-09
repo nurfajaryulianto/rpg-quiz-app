@@ -281,13 +281,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      // TOKEN_REFRESHED or USER_UPDATED — re-sync participant data silently
-      // (do NOT set isLoading here — it would unmount children via AuthProvider).
+      // TOKEN_REFRESHED / USER_UPDATED — re-sync participant data di background.
+      // JANGAN set isLoading: true di sini — token refresh adalah operasi background
+      // yang terjadi setiap kali user kembali ke tab. Jika isLoading diset true,
+      // seluruh UI akan terblokir spinner setiap kali user pindah tab dan kembali.
+      // Data lama tetap ditampilkan selama refresh berlangsung (UX lebih baik).
       if (session?.user) {
         const freshParticipant = await fetchParticipantByUserId(session.user.id);
         set({
           user: session.user,
-          // If re-fetch fails (network hiccup), keep current participant so pages don't break.
+          // If the re-fetch fails (e.g. network hiccup after idle), keep the
+          // current participant so pages don't get stuck on the error screen.
           participant: freshParticipant ?? get().participant,
         });
       }
