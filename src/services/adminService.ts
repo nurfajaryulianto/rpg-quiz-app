@@ -1299,6 +1299,14 @@ export async function generateBatchQuestionsFromArchives(
     const shuffled = shuffleArray([...pool]);
     const selected = shuffled.slice(0, setting.count);
 
+    // Warn if the archive doesn't have enough questions for the requested count
+    if (pool.length < setting.count) {
+      const label = QTYPE_LABELS[setting.question_type] ?? setting.question_type;
+      warnings.push(
+        `Hanya tersedia ${pool.length} soal "${label}" di bank soal, diminta ${setting.count}. Generate menggunakan semua soal yang tersedia.`
+      );
+    }
+
     for (const aq of selected) {
       // 6. Insert into questions table linked to this batch
       const { data: newQ, error: qErr } = await supabase

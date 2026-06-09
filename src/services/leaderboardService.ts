@@ -47,14 +47,19 @@ export async function getBatchLeaderboard(batchId: string) {
   return data ?? [];
 }
 
-export async function getReviewAnswers(participantId: string, batchId: string) {
-  const { data, error } = await supabase
+export async function getReviewAnswers(
+  participantId: string,
+  batchId: string,
+  signal?: AbortSignal
+) {
+  const query = supabase
     .from("answers")
     .select(`
       *,
       questions (
         id,
         question_text,
+        question_type,
         points,
         order_index,
         options (*)
@@ -63,6 +68,7 @@ export async function getReviewAnswers(participantId: string, batchId: string) {
     .eq("participant_id", participantId)
     .eq("batch_id", batchId)
     .order("answered_at", { ascending: true });
+  const { data, error } = await (signal ? query.abortSignal(signal) : query);
 
   if (error) throw error;
   return data ?? [];

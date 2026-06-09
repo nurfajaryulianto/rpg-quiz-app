@@ -280,7 +280,7 @@ function HomePage() {
                 <div className="flex items-center justify-between pt-4 border-t border-surface-container">
                   <div className="flex items-center gap-2">
                     <MaterialIcon name="timer" className="text-on-surface-variant text-sm" />
-                    <span className="text-on-surface-variant text-xs font-bold">{batch.time_limit_seconds}s per question</span>
+                    <span className="text-on-surface-variant text-xs font-bold">{Math.round(batch.time_limit_seconds / 60)} min</span>
                   </div>
                   <button className="text-primary font-extrabold flex items-center gap-1 hover:gap-2 transition-all">
                     Start <MaterialIcon name="arrow_forward_ios" className="text-sm" />

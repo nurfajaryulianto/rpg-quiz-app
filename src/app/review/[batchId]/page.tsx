@@ -48,30 +48,45 @@ function ReviewPage() {
 
   useEffect(() => {
     if (!participant || !batchId) return;
+    let cancelled = false;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12_000);
 
     async function load() {
       try {
         const [answersData, batchResult] = await Promise.all([
-          getReviewAnswers(participant!.id, batchId),
-          supabase.from("batches").select("*").eq("id", batchId).single(),
+          getReviewAnswers(participant!.id, batchId, controller.signal),
+          supabase.from("batches").select("*").eq("id", batchId).abortSignal(controller.signal).single(),
         ]);
 
+        if (cancelled) return;
         setAnswers(answersData as unknown as ReviewAnswer[]);
         setBatch(batchResult.data as Batch | null);
+      } catch {
+        // AbortError or network error — show empty state rather than spinning
       } finally {
-        setLoading(false);
+        clearTimeout(timeoutId);
+        if (!cancelled) setLoading(false);
       }
     }
 
     load();
+    return () => { cancelled = true; clearTimeout(timeoutId); controller.abort(); };
   }, [participant, batchId]);
 
-  // Realtime: update when essay gets graded
+  // Realtime: refresh answers when any answer row is updated (essay graded, etc.)
   useEffect(() => {
     if (!participant || !batchId) return;
+    const channelName = `review-${participant.id}-${batchId}`;
     const channel = supabase
-      .channel("review-essay-updates")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "answers" }, async () => {
+      .channel(channelName)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "answers",
+        filter: `batch_id=eq.${batchId}`,
+      }, async () => {
         const data = await getReviewAnswers(participant!.id, batchId);
         setAnswers(data as unknown as ReviewAnswer[]);
       })

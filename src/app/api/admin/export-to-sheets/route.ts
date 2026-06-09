@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { google } from "googleapis";
-import type { Database } from "@/lib/database.types";
 
 // ============================================================
 // POST /api/admin/export-to-sheets
@@ -22,16 +20,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const supabaseUser = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-  const { data: { user }, error: authError } = await supabaseUser.auth.getUser(accessToken);
+  const supabaseAdmin = getSupabaseAdmin();
+  const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
   if (authError || !user) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const supabaseAdmin = getSupabaseAdmin();
   const { data: caller } = await supabaseAdmin
     .from("participants")
     .select("role")

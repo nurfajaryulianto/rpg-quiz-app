@@ -11,17 +11,18 @@ import LoadingSpinner from "@/components/ui/LoadingSpinner";
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { participant, user } = useAuthStore();
+  const { participant, user, isInitialized } = useAuthStore();
 
   useEffect(() => {
+    if (!isInitialized) return; // wait until auth is confirmed before redirecting
     if (!user) {
       router.push("/login");
     } else if (participant && participant.role !== "admin") {
       router.push("/");
     }
-  }, [user, participant, router]);
+  }, [user, participant, isInitialized, router]);
 
-  if (!user || !participant) {
+  if (!isInitialized || !user || !participant) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner />

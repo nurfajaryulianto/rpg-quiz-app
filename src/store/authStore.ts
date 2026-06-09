@@ -17,6 +17,34 @@ interface AuthState {
 
 const NIK_EMAIL_DOMAIN = "ksm.local";
 
+// Columns fetched for every participant query — single source of truth.
+const PARTICIPANT_SELECT =
+  "id, user_id, name, email, nik, role, area, jabatan, sub_dept, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, current_session_id, created_at, updated_at";
+
+/** Fetch a participant row by Supabase auth user_id. Returns null on not-found or timeout. */
+async function fetchParticipantByUserId(
+  userId: string,
+  signal?: AbortSignal
+): Promise<Participant | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const sig = signal ?? controller.signal;
+  try {
+    const { data } = await supabase
+      .from("participants")
+      .select(PARTICIPANT_SELECT)
+      .eq("user_id", userId)
+      .limit(1)
+      .abortSignal(sig)
+      .maybeSingle();
+    return data;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // ── Single-device session nonce ─────────────────────────────────────────────
 // One Realtime channel per browser tab.  Replaced on every login, cleaned up
 // on logout / sign-out event.
@@ -100,26 +128,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const session = sessionResult.data.session;
 
       if (session?.user) {
-        // Add an abort timeout to the DB query for the same reason: a stale
-        // connection would cause this fetch to hang after idle time.
-        const controller = new AbortController();
-        const dbTimeoutId = setTimeout(() => controller.abort(), 8000);
-
-        let participant: Participant | null = null;
-        try {
-          const { data } = await supabase
-            .from("participants")
-            .select("id, user_id, name, email, nik, role, area, jabatan, sub_dept, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, current_session_id, created_at, updated_at")
-            .eq("user_id", session.user.id)
-            .limit(1)
-            .abortSignal(controller.signal)
-            .maybeSingle();
-          participant = data;
-        } catch {
-          // AbortError (timeout) or network error — treat as no participant found
-        } finally {
-          clearTimeout(dbTimeoutId);
-        }
+        const participant = await fetchParticipantByUserId(session.user.id);
 
         if (participant) {
           // Single-device check: if we have a stored nonce but it doesn't match
@@ -175,24 +184,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       // TOKEN_REFRESHED or USER_UPDATED — re-sync participant data
       if (session?.user) {
-        const controller = new AbortController();
-        const dbTimeoutId = setTimeout(() => controller.abort(), 8000);
-
-        let freshParticipant: Participant | null = null;
-        try {
-          const { data } = await supabase
-            .from("participants")
-            .select("id, user_id, name, email, nik, role, area, jabatan, sub_dept, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, current_session_id, created_at, updated_at")
-            .eq("user_id", session.user.id)
-            .limit(1)
-            .abortSignal(controller.signal)
-            .maybeSingle();
-          freshParticipant = data;
-        } catch {
-          // Timeout or network error — keep existing participant (handled below)
-        } finally {
-          clearTimeout(dbTimeoutId);
-        }
+        const freshParticipant = await fetchParticipantByUserId(session.user.id);
 
         set({
           user: session.user,
@@ -211,31 +203,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true });
     try {
       const email = `${nik}@${NIK_EMAIL_DOMAIN}`;
-      console.log("[AUTH] Logging in with email:", email);
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        console.error("[AUTH] Sign-in error:", error.message);
-        throw error;
-      }
-      console.log("[AUTH] Sign-in success, user:", data.user?.id);
+      if (error) throw error;
 
       if (data.user) {
-        const { data: participant, error: pError } = await supabase
-          .from("participants")
-          .select("id, user_id, name, email, nik, role, area, jabatan, sub_dept, level, xp, total_score, quizzes_taken, avatar_url, avatar_config, current_session_id, created_at, updated_at")
-          .eq("user_id", data.user.id)
-          .limit(1)
-          .maybeSingle();
-
-        if (pError) {
-          console.error("[AUTH] Participant query error:", pError.message, pError);
-        } else {
-          console.log("[AUTH] Participant loaded:", participant?.name, participant?.role);
-        }
+        const participant = await fetchParticipantByUserId(data.user.id);
 
         set({
           user: data.user,
-          participant: participant ?? null,
+          participant,
         });
 
         // Single-device enforcement: generate a new nonce, persist to DB + localStorage

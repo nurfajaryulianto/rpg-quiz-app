@@ -113,8 +113,9 @@ export default function SupervisorPage() {
 
   // Realtime subscription for live grading updates
   useEffect(() => {
+    const channelName = `supervisor-essays-${participant?.id ?? "unknown"}`;
     const channel = supabase
-      .channel("supervisor-essay-updates")
+      .channel(channelName)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "answers" },

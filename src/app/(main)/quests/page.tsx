@@ -199,7 +199,7 @@ function QuestsPage() {
                 <div className="flex items-center justify-between pt-4 border-t border-surface-container">
                   <div className="flex items-center gap-2">
                     <MaterialIcon name="timer" className="text-on-surface-variant text-sm" />
-                    <span className="font-bold text-on-surface-variant text-xs">{batch.time_limit_seconds}s/q</span>
+                    <span className="font-bold text-on-surface-variant text-xs">{Math.round(batch.time_limit_seconds / 60)} min</span>
                   </div>
                   {session && isCompleted ? (
                     <div className="flex items-center gap-2">

@@ -11,6 +11,7 @@
         "git add": true,
         "git commit": true,
         "git push": true,
-        "ForEach-Object": true
+        "ForEach-Object": true,
+        "Get-Command": true
     }
 }

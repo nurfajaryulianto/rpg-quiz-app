@@ -17,14 +17,9 @@ function AppShellInner({ children }: { children: React.ReactNode }) {
   const { user, participant, isInitialized } = useAuthStore();
 
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized) return; // wait for auth to fully initialize before redirecting
     if (!user) {
       router.push("/login");
-      return;
-    }
-    // Character creation temporarily disabled — redirect away if someone lands on it
-    if (pathname === "/create-character") {
-      router.push("/");
     }
   }, [user, isInitialized, router, pathname]);
 
