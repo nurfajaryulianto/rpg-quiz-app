@@ -13,14 +13,23 @@ import type { LeaderboardEntry } from "@/services/leaderboardService";
 
 function HomePage() {
   const router = useRouter();
-  const { participant, user } = useAuthStore();
+
+  // FIX #1: Ambil isLoading dan isInitialized dari authStore
+  const { participant, user, isLoading: authLoading, isInitialized } = useAuthStore();
+
   const [batches, setBatches] = useState<Batch[]>([]);
   const [topPlayers, setTopPlayers] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  // FIX #2: Rename 'loading' → 'dataLoading' agar tidak rancu dengan authLoading
+  const [dataLoading, setDataLoading] = useState(true);
+
+  // FIX #3: Gunakan primitive ID sebagai dependency, bukan seluruh object
+  // Ini mencegah effect re-run setiap kali Zustand membuat object reference baru
+  const userId = user?.id;
+  const participantId = participant?.id;
 
   useEffect(() => {
     if (!user || !participant) {
-      setLoading(false);
+      setDataLoading(false);
       return;
     }
 
@@ -75,7 +84,7 @@ function HomePage() {
       } catch {
         // AbortError (timeout) or network error — show empty state rather than spinning forever
       } finally {
-        setLoading(false);
+        setDataLoading(false);
       }
     }
 
@@ -85,17 +94,30 @@ function HomePage() {
       clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [user, participant]);
+  // FIX #3: Pakai ID (primitive) bukan object langsung
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, participantId]);
 
-  if (!user || !participant) {
+  // FIX #4: Auth store belum selesai initialize — tampilkan spinner sementara
+  // Ini menangani kasus app baru mount, atau kembali dari idle
+  if (!isInitialized || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner />
+        <LoadingSpinner text="Authenticating..." />
       </div>
     );
   }
 
-  if (loading) {
+  // FIX #5: Auth sudah selesai tapi tidak ada user → redirect ke login
+  // Sebelumnya: spinner tanpa jalan keluar → loading abadi
+  // Sekarang: ada redirect yang jelas
+  if (!user || !participant) {
+    router.replace("/login");
+    return null;
+  }
+
+  // FIX #6: Data halaman masih di-fetch — spinner terpisah dari auth spinner
+  if (dataLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner text="Loading your exam..." />

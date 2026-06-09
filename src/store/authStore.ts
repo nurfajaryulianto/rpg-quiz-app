@@ -270,6 +270,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Store the subscription so it can be cleaned up if needed.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "INITIAL_SESSION") return;
+
       if (event === "SIGNED_OUT") {
         // Clean up Broadcast guard channel
         if (guardChannel) {
@@ -279,16 +280,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ user: null, participant: null });
         return;
       }
-      // TOKEN_REFRESHED or USER_UPDATED — re-sync participant data
-      if (session?.user) {
-        const freshParticipant = await fetchParticipantByUserId(session.user.id);
 
-        set({
-          user: session.user,
-          // If the re-fetch fails (e.g. network hiccup after idle), keep the
-          // current participant so pages don't get stuck on the error screen.
-          participant: freshParticipant ?? get().participant,
-        });
+      // FIX: Set isLoading: true saat TOKEN_REFRESHED atau USER_UPDATED,
+      // agar halaman yang bergantung pada auth tidak render dengan state stale
+      // selama re-fetch participant (bisa sampai 8 detik).
+      if (session?.user) {
+        set({ isLoading: true });
+        try {
+          const freshParticipant = await fetchParticipantByUserId(session.user.id);
+          set({
+            user: session.user,
+            // If the re-fetch fails (e.g. network hiccup after idle), keep the
+            // current participant so pages don't get stuck on the error screen.
+            participant: freshParticipant ?? get().participant,
+          });
+        } finally {
+          // Always clear isLoading regardless of success or error,
+          // so pages are never left in a permanent loading state.
+          set({ isLoading: false });
+        }
       }
     });
 
@@ -434,4 +444,3 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 }));
-
