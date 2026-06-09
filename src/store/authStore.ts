@@ -3,9 +3,14 @@ import { supabase } from "@/lib/supabase";
 import type { Participant } from "@/lib/database.types";
 import type { User, RealtimeChannel } from "@supabase/supabase-js";
 
-/** Info about who kicked the current session off. */
+/** Info about who displaced this session (fires after a challenge timeout or accept). */
 export interface KickedInfo {
-  /** IP address of the new login that displaced this session. */
+  ip: string;
+}
+
+/** Incoming login challenge — another device is trying to use the same account. */
+export interface SessionChallenge {
+  challengeId: string;
   ip: string;
 }
 
@@ -14,17 +19,19 @@ interface AuthState {
   participant: Participant | null;
   isLoading: boolean;
   isInitialized: boolean;
-  /** Set when another device/IP logs in with the same account. Non-null triggers the kick banner. */
+  /** Set when the current session was displaced (session_taken broadcast). Triggers kick banner. */
   kickedInfo: KickedInfo | null;
+  /** Set when a new device is challenging for this account. Triggers challenge banner. */
+  sessionChallenge: SessionChallenge | null;
 
   initialize: () => Promise<void>;
   login: (nik: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   setParticipant: (p: Participant | null) => void;
-  /** Clear the kick notification (called after countdown finishes). */
   clearKick: () => void;
-  /** Perform cleanup + Supabase signOut after the kick countdown. */
   performKickLogout: () => Promise<void>;
+  /** Respond to an incoming login challenge. 'deny' keeps this session; 'allow' logs out and lets the new device in. */
+  respondToChallenge: (action: "deny" | "allow") => Promise<void>;
 }
 
 const NIK_EMAIL_DOMAIN = "ksm.local";
@@ -57,32 +64,27 @@ async function fetchParticipantByUserId(
   }
 }
 
-// ── Single-device session nonce ─────────────────────────────────────────────
-// One Realtime channel per browser tab.  Replaced on every login, cleaned up
-// on logout / sign-out event.
-let sessionNonceChannel: RealtimeChannel | null = null;
+// ── Session guard via Supabase Broadcast ────────────────────────────────────
+// Broadcast channels work without any DB Realtime publication setup and deliver
+// messages in real-time over WebSocket to all subscribed clients.
+//
+// Channel name: `session-guard:{participantId}` (unique per participant)
+// Events:
+//   login_challenge   B → all   {challengeId, ip}          new device is trying to login
+//   challenge_response A → all  {challengeId, action}      existing session responds
+//   session_taken     B → all   {ip}                       new login succeeded, old session displaced
 
-// Auth state subscription — stored so it can be unsubscribed on cleanup.
+let guardChannel: RealtimeChannel | null = null;
 let authStateSubscription: { unsubscribe: () => void } | null = null;
 
 function nonceKey(participantId: string) {
   return `_sn_${participantId}`;
 }
 
-// ── Session value helpers ──────────────────────────────────────────────────
-// We encode the IP into the session value so it can be shown in the kick banner.
-// Format stored in DB + localStorage: "<uuid>|<ip>"
-
 function encodeSessionValue(nonce: string, ip: string): string {
   return `${nonce}|${ip}`;
 }
-
-function decodeSessionIp(sessionValue: string): string {
-  const parts = sessionValue.split("|");
-  // parts[0] = nonce UUID, parts[1] = IP (may be absent in old-format values)
-  return parts.length >= 2 ? parts.slice(1).join("|") : "perangkat lain";
-}
-// ──────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────────
 
 /**
  * Fetch the client's IP address from our own API endpoint.
@@ -100,43 +102,91 @@ async function getClientIp(): Promise<string> {
 }
 
 /**
- * Subscribe to Realtime changes on the participant's row.
- * If `current_session_id` changes to something different from what we stored
- * in localStorage → another device/IP logged in → show the kick banner.
- * The banner handles the actual signOut after a countdown.
+ * Subscribe to the session-guard broadcast channel for this participant.
+ * Handles incoming login_challenge (show choice banner) and
+ * session_taken (show kicked banner) events.
+ * Must be called after writing a new session value to DB + localStorage.
  */
-function startNonceWatcher(participantId: string) {
-  // Remove any previous subscription
-  if (sessionNonceChannel) {
-    supabase.removeChannel(sessionNonceChannel);
+function subscribeGuardChannel(participantId: string, mySessionValue: string) {
+  if (guardChannel) {
+    supabase.removeChannel(guardChannel);
   }
 
-  sessionNonceChannel = supabase
-    .channel(`nonce:${participantId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "participants",
-        filter: `id=eq.${participantId}`,
-      },
-      (payload) => {
-        const newSessionValue = (payload.new as { current_session_id?: string | null })
-          .current_session_id;
-        const localSessionValue = localStorage.getItem(nonceKey(participantId));
+  guardChannel = supabase
+    .channel(`session-guard:${participantId}`)
+    .on("broadcast", { event: "login_challenge" }, ({ payload }) => {
+      // Verify we still own the active session before showing the banner.
+      const localSV = localStorage.getItem(nonceKey(participantId));
+      if (localSV !== mySessionValue) return;
 
-        // If both exist and differ → we were displaced by a new login elsewhere
-        if (newSessionValue && localSessionValue && newSessionValue !== localSessionValue) {
-          localStorage.removeItem(nonceKey(participantId));
-          // Extract the new login's IP from the session value and trigger the kick banner.
-          // The banner component will call performKickLogout() after the countdown.
-          const kickedFromIp = decodeSessionIp(newSessionValue);
-          useAuthStore.setState({ kickedInfo: { ip: kickedFromIp } });
-        }
-      }
-    )
+      useAuthStore.setState({
+        sessionChallenge: {
+          challengeId: payload.challengeId as string,
+          ip: (payload.ip as string) ?? "perangkat lain",
+        },
+      });
+    })
+    .on("broadcast", { event: "session_taken" }, ({ payload }) => {
+      // A new login succeeded and displaced our session.
+      const localSV = localStorage.getItem(nonceKey(participantId));
+      if (localSV !== mySessionValue) return;
+
+      localStorage.removeItem(nonceKey(participantId));
+      useAuthStore.setState({
+        kickedInfo: { ip: (payload.ip as string) ?? "perangkat lain" },
+      });
+    })
     .subscribe();
+}
+
+/**
+ * Broadcast a login_challenge to any active session on this participant's guard channel.
+ * Waits up to CHALLENGE_TIMEOUT_MS for a challenge_response.
+ *
+ * Returns:
+ *   'allow'   — existing session owner explicitly allowed the new login
+ *   'deny'    — existing session owner denied the new login
+ *   'timeout' — no response received within timeout → new login proceeds
+ */
+const CHALLENGE_TIMEOUT_MS = 10_000;
+
+async function sendLoginChallenge(
+  participantId: string,
+  challengeId: string,
+  ip: string
+): Promise<"allow" | "deny" | "timeout"> {
+  return new Promise<"allow" | "deny" | "timeout">((resolve) => {
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        supabase.removeChannel(tempCh);
+        resolve("timeout");
+      }
+    }, CHALLENGE_TIMEOUT_MS);
+
+    const tempCh = supabase
+      .channel(`session-guard:${participantId}`)
+      .on("broadcast", { event: "challenge_response" }, ({ payload }) => {
+        if ((payload.challengeId as string) === challengeId && !settled) {
+          settled = true;
+          clearTimeout(timer);
+          supabase.removeChannel(tempCh);
+          resolve(payload.action as "allow" | "deny");
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          // Broadcast once subscribed so existing sessions can receive it
+          await tempCh.send({
+            type: "broadcast",
+            event: "login_challenge",
+            payload: { challengeId, ip },
+          });
+        }
+      });
+  });
 }
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -146,6 +196,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   isInitialized: false,
   kickedInfo: null,
+  sessionChallenge: null,
 
   initialize: async () => {
     if (get().isInitialized) return;
@@ -198,9 +249,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
           set({ user: session.user, participant });
 
-          // Re-attach watcher if we already have a nonce from a previous login
+          // Re-attach guard channel if we already have a valid session from a previous login
           if (storedNonce) {
-            startNonceWatcher(participant.id);
+            subscribeGuardChannel(participant.id, storedNonce);
           }
         } else {
           set({ user: session.user, participant: null });
@@ -220,10 +271,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "INITIAL_SESSION") return;
       if (event === "SIGNED_OUT") {
-        // Clean up Realtime nonce watcher
-        if (sessionNonceChannel) {
-          supabase.removeChannel(sessionNonceChannel);
-          sessionNonceChannel = null;
+        // Clean up Broadcast guard channel
+        if (guardChannel) {
+          supabase.removeChannel(guardChannel);
+          guardChannel = null;
         }
         set({ user: null, participant: null });
         return;
@@ -260,10 +311,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           participant,
         });
 
-        // Single-device enforcement: generate a new nonce, get client IP, persist to DB + localStorage.
         if (participant) {
-          const nonce = crypto.randomUUID();
           const clientIp = await getClientIp();
+
+          // If another session is active, challenge it and wait for a response.
+          // The existing session owner can deny (keep their session) or allow (let this login in).
+          // If no one responds within the timeout, this login proceeds automatically.
+          if (participant.current_session_id) {
+            const challengeId = crypto.randomUUID();
+            const outcome = await sendLoginChallenge(participant.id, challengeId, clientIp);
+
+            if (outcome === "deny") {
+              // Existing session owner denied this login — abort
+              try { await supabase.auth.signOut(); } catch { /* ignore */ }
+              set({ user: null, participant: null });
+              throw new Error("SESSION_CONFLICT_DENIED");
+            }
+            // 'allow' or 'timeout' → proceed with this login
+          }
+
+          // Write new session value to DB and localStorage
+          const nonce = crypto.randomUUID();
           const sessionValue = encodeSessionValue(nonce, clientIp);
 
           const { error: nonceErr } = await supabase
@@ -272,9 +340,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             .eq("id", participant.id);
 
           if (!nonceErr) {
-            // Only store locally once DB write succeeds (prevents false kick on next init)
             localStorage.setItem(nonceKey(participant.id), sessionValue);
-            startNonceWatcher(participant.id);
+            subscribeGuardChannel(participant.id, sessionValue);
+
+            // Broadcast session_taken so any lingering old session is kicked in real-time.
+            // Small delay gives the subscription time to establish before sending.
+            setTimeout(() => {
+              guardChannel?.send({
+                type: "broadcast",
+                event: "session_taken",
+                payload: { ip: clientIp },
+              });
+            }, 600);
           }
         }
       }
@@ -300,13 +377,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const participant = get().participant;
     if (participant) {
       localStorage.removeItem(nonceKey(participant.id));
+      // Clear session from DB so next login on any device starts without a challenge
+      await supabase
+        .from("participants")
+        .update({ current_session_id: null })
+        .eq("id", participant.id);
     }
-    if (sessionNonceChannel) {
-      supabase.removeChannel(sessionNonceChannel);
-      sessionNonceChannel = null;
+    if (guardChannel) {
+      supabase.removeChannel(guardChannel);
+      guardChannel = null;
     }
     await supabase.auth.signOut();
-    set({ user: null, participant: null, kickedInfo: null });
+    set({ user: null, participant: null, kickedInfo: null, sessionChallenge: null });
   },
 
   setParticipant: (p) => set({ participant: p }),
@@ -314,21 +396,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   clearKick: () => set({ kickedInfo: null }),
 
   performKickLogout: async () => {
-    // Clean up realtime channel and local nonce before signing out.
     const participant = get().participant;
     if (participant) {
       localStorage.removeItem(nonceKey(participant.id));
     }
-    if (sessionNonceChannel) {
-      supabase.removeChannel(sessionNonceChannel);
-      sessionNonceChannel = null;
+    if (guardChannel) {
+      supabase.removeChannel(guardChannel);
+      guardChannel = null;
     }
     try {
       await supabase.auth.signOut();
     } catch {
       // Sign-out can fail on stale connections — clear state regardless.
     }
-    set({ user: null, participant: null, kickedInfo: null });
+    set({ user: null, participant: null, kickedInfo: null, sessionChallenge: null });
+  },
+
+  respondToChallenge: async (action: "deny" | "allow") => {
+    const challenge = get().sessionChallenge;
+    if (!challenge) return;
+
+    // Dismiss the banner immediately
+    set({ sessionChallenge: null });
+
+    // Send response via guard channel so the new device's login() resolves
+    if (guardChannel) {
+      await guardChannel.send({
+        type: "broadcast",
+        event: "challenge_response",
+        payload: { challengeId: challenge.challengeId, action },
+      });
+    }
+
+    // If the user chose to allow the new login, sign out of this session
+    if (action === "allow") {
+      await get().performKickLogout();
+    }
   },
 }));
 

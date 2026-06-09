@@ -32,6 +32,8 @@ export default function LoginPage() {
       const msg = err instanceof Error ? err.message : "Login failed";
       if (msg.toLowerCase().includes("invalid login credentials") || msg.toLowerCase().includes("invalid credentials")) {
         setError("NIK atau password salah. Jika sudah ganti password dan lupa, minta admin untuk reset password kamu.");
+      } else if (msg === "SESSION_CONFLICT_DENIED") {
+        setError("Login ditolak. Pemilik akun sedang aktif dan menolak percobaan login ini. Pastikan Anda menggunakan NIK yang benar.");
       } else {
         setError(msg);
       }
