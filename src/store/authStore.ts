@@ -3,16 +3,28 @@ import { supabase } from "@/lib/supabase";
 import type { Participant } from "@/lib/database.types";
 import type { User, RealtimeChannel } from "@supabase/supabase-js";
 
+/** Info about who kicked the current session off. */
+export interface KickedInfo {
+  /** IP address of the new login that displaced this session. */
+  ip: string;
+}
+
 interface AuthState {
   user: User | null;
   participant: Participant | null;
   isLoading: boolean;
   isInitialized: boolean;
+  /** Set when another device/IP logs in with the same account. Non-null triggers the kick banner. */
+  kickedInfo: KickedInfo | null;
 
   initialize: () => Promise<void>;
   login: (nik: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   setParticipant: (p: Participant | null) => void;
+  /** Clear the kick notification (called after countdown finishes). */
+  clearKick: () => void;
+  /** Perform cleanup + Supabase signOut after the kick countdown. */
+  performKickLogout: () => Promise<void>;
 }
 
 const NIK_EMAIL_DOMAIN = "ksm.local";
@@ -57,10 +69,41 @@ function nonceKey(participantId: string) {
   return `_sn_${participantId}`;
 }
 
+// ── Session value helpers ──────────────────────────────────────────────────
+// We encode the IP into the session value so it can be shown in the kick banner.
+// Format stored in DB + localStorage: "<uuid>|<ip>"
+
+function encodeSessionValue(nonce: string, ip: string): string {
+  return `${nonce}|${ip}`;
+}
+
+function decodeSessionIp(sessionValue: string): string {
+  const parts = sessionValue.split("|");
+  // parts[0] = nonce UUID, parts[1] = IP (may be absent in old-format values)
+  return parts.length >= 2 ? parts.slice(1).join("|") : "perangkat lain";
+}
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Fetch the client's IP address from our own API endpoint.
+ * Returns "unknown" on any failure (offline, dev environment, etc.).
+ */
+async function getClientIp(): Promise<string> {
+  try {
+    const res = await fetch("/api/auth/get-ip", { cache: "no-store" });
+    if (!res.ok) return "unknown";
+    const json = (await res.json()) as { ip?: string };
+    return json.ip ?? "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
 /**
  * Subscribe to Realtime changes on the participant's row.
  * If `current_session_id` changes to something different from what we stored
- * in localStorage → another device logged in → sign this session out.
+ * in localStorage → another device/IP logged in → show the kick banner.
+ * The banner handles the actual signOut after a countdown.
  */
 function startNonceWatcher(participantId: string) {
   // Remove any previous subscription
@@ -78,16 +121,18 @@ function startNonceWatcher(participantId: string) {
         table: "participants",
         filter: `id=eq.${participantId}`,
       },
-      async (payload) => {
-        const newNonce = (payload.new as { current_session_id?: string | null })
+      (payload) => {
+        const newSessionValue = (payload.new as { current_session_id?: string | null })
           .current_session_id;
-        const localNonce = localStorage.getItem(nonceKey(participantId));
+        const localSessionValue = localStorage.getItem(nonceKey(participantId));
 
         // If both exist and differ → we were displaced by a new login elsewhere
-        if (newNonce && localNonce && newNonce !== localNonce) {
+        if (newSessionValue && localSessionValue && newSessionValue !== localSessionValue) {
           localStorage.removeItem(nonceKey(participantId));
-          await supabase.auth.signOut();
-          // onAuthStateChange SIGNED_OUT handler will clear the store state
+          // Extract the new login's IP from the session value and trigger the kick banner.
+          // The banner component will call performKickLogout() after the countdown.
+          const kickedFromIp = decodeSessionIp(newSessionValue);
+          useAuthStore.setState({ kickedInfo: { ip: kickedFromIp } });
         }
       }
     )
@@ -100,6 +145,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   participant: null,
   isLoading: false,
   isInitialized: false,
+  kickedInfo: null,
 
   initialize: async () => {
     if (get().isInitialized) return;
@@ -214,17 +260,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           participant,
         });
 
-        // Single-device enforcement: generate a new nonce, persist to DB + localStorage
+        // Single-device enforcement: generate a new nonce, get client IP, persist to DB + localStorage.
         if (participant) {
           const nonce = crypto.randomUUID();
+          const clientIp = await getClientIp();
+          const sessionValue = encodeSessionValue(nonce, clientIp);
+
           const { error: nonceErr } = await supabase
             .from("participants")
-            .update({ current_session_id: nonce })
+            .update({ current_session_id: sessionValue })
             .eq("id", participant.id);
 
           if (!nonceErr) {
             // Only store locally once DB write succeeds (prevents false kick on next init)
-            localStorage.setItem(nonceKey(participant.id), nonce);
+            localStorage.setItem(nonceKey(participant.id), sessionValue);
             startNonceWatcher(participant.id);
           }
         }
@@ -257,9 +306,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       sessionNonceChannel = null;
     }
     await supabase.auth.signOut();
-    set({ user: null, participant: null });
+    set({ user: null, participant: null, kickedInfo: null });
   },
 
   setParticipant: (p) => set({ participant: p }),
+
+  clearKick: () => set({ kickedInfo: null }),
+
+  performKickLogout: async () => {
+    // Clean up realtime channel and local nonce before signing out.
+    const participant = get().participant;
+    if (participant) {
+      localStorage.removeItem(nonceKey(participant.id));
+    }
+    if (sessionNonceChannel) {
+      supabase.removeChannel(sessionNonceChannel);
+      sessionNonceChannel = null;
+    }
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Sign-out can fail on stale connections — clear state regardless.
+    }
+    set({ user: null, participant: null, kickedInfo: null });
+  },
 }));
 
