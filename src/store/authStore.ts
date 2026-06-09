@@ -74,6 +74,12 @@ async function fetchParticipantByUserId(
 //   challenge_response A → all  {challengeId, action}      existing session responds
 //   session_taken     B → all   {ip}                       new login succeeded, old session displaced
 
+// Prevents concurrent initialize() calls during the async operation.
+// Using a module-level flag (not store state) so isInitialized stays FALSE
+// until initialization is 100% complete — AuthProvider uses isInitialized to
+// block rendering until the DB has warmed up and auth is fully resolved.
+let _initCalled = false;
+
 let guardChannel: RealtimeChannel | null = null;
 let authStateSubscription: { unsubscribe: () => void } | null = null;
 
@@ -199,10 +205,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   sessionChallenge: null,
 
   initialize: async () => {
-    if (get().isInitialized) return;
-    // Mark as initialized immediately to prevent concurrent duplicate calls
-    // (e.g. React strict-mode double-mount or multiple AuthProvider instances).
-    set({ isInitialized: true, isLoading: true });
+    // isInitialized: already done (normal case)
+    // _initCalled: concurrent call arrived while async init is still running (strict-mode double-mount)
+    if (get().isInitialized || _initCalled) return;
+    _initCalled = true;
+    // isInitialized stays FALSE here on purpose — AuthProvider gates on it to show
+    // a spinner until initialization (including DB warm-up) fully completes.
+    set({ isLoading: true });
 
     // Clean up any previous auth subscription (hot-reload safety)
     if (authStateSubscription) {
@@ -262,7 +271,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // from the global 15 s fetch timeout firing on getSession() before our
       // Promise.race 8 s safety resolves. Treat as unauthenticated and unblock.
     } finally {
-      set({ isLoading: false });
+      // Mark as fully initialized NOW — after all async work (DB fetch) is done.
+      // This ensures AuthProvider's spinner covers the DB warm-up period on Supabase
+      // free tier, preventing pages from hitting a sleeping DB on cold start.
+      set({ isLoading: false, isInitialized: true });
     }
 
     // Listen for auth state changes (token refresh, sign-out, etc.).

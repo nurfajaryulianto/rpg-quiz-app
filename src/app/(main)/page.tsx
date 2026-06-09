@@ -14,8 +14,10 @@ import type { LeaderboardEntry } from "@/services/leaderboardService";
 function HomePage() {
   const router = useRouter();
 
-  // FIX #1: Ambil isLoading dan isInitialized dari authStore
-  const { participant, user, isLoading: authLoading, isInitialized } = useAuthStore();
+  // FIX #1: isInitialized adalah satu-satunya guard yang diperlukan.
+  // isLoading (authLoading) juga set oleh login() dan token refresh — menggunakannya
+  // di sini akan menyebabkan halaman stuck spinner setiap kali terjadi token refresh.
+  const { participant, user, isInitialized } = useAuthStore();
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [topPlayers, setTopPlayers] = useState<LeaderboardEntry[]>([]);
@@ -99,8 +101,9 @@ function HomePage() {
   }, [userId, participantId]);
 
   // FIX #4: Auth store belum selesai initialize — tampilkan spinner sementara
-  // Ini menangani kasus app baru mount, atau kembali dari idle
-  if (!isInitialized || authLoading) {
+  // isInitialized: true hanya setelah initialize() benar-benar selesai (termasuk
+  // DB warm-up), sehingga spinner ini sekaligus "memanaskan" DB Supabase.
+  if (!isInitialized) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner text="Authenticating..." />
