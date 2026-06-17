@@ -19,6 +19,7 @@ interface AuthState {
   participant: Participant | null;
   isLoading: boolean;
   isInitialized: boolean;
+  initError: "timeout" | "error" | null;
   /** Set when the current session was displaced (session_taken broadcast). Triggers kick banner. */
   kickedInfo: KickedInfo | null;
   /** Set when a new device is challenging for this account. Triggers challenge banner. */
@@ -49,16 +50,15 @@ async function fetchParticipantByUserId(
   const timeoutId = setTimeout(() => controller.abort(), 8000);
   const sig = signal ?? controller.signal;
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("participants")
       .select(PARTICIPANT_SELECT)
       .eq("user_id", userId)
       .limit(1)
       .abortSignal(sig)
       .maybeSingle();
+    if (error) throw error;
     return data;
-  } catch {
-    return null;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -201,6 +201,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   participant: null,
   isLoading: false,
   isInitialized: false,
+  initError: null,
   kickedInfo: null,
   sessionChallenge: null,
 
@@ -211,7 +212,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     _initCalled = true;
     // isInitialized stays FALSE here on purpose — AuthProvider gates on it to show
     // a spinner until initialization (including DB warm-up) fully completes.
-    set({ isLoading: true });
+    set({ isLoading: true, initError: null });
 
     // Clean up any previous auth subscription (hot-reload safety)
     if (authStateSubscription) {
@@ -225,11 +226,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // (common when coming back to an idle browser tab).  Race it against an
       // 8-second timeout so we always unblock the loading screen.
       const sessionResult = await Promise.race([
-        supabase.auth.getSession(),
-        new Promise<{ data: { session: null } }>((resolve) =>
-          setTimeout(() => resolve({ data: { session: null } }), 8000)
+        supabase.auth.getSession().then((res) => ({ ...res, timedOut: false })),
+        new Promise<{ data: { session: null }; timedOut: boolean }>((resolve) =>
+          setTimeout(() => resolve({ data: { session: null }, timedOut: true }), 8000)
         ),
       ]);
+
+      if (sessionResult.timedOut) {
+        throw new Error("TIMEOUT");
+      }
 
       const session = sessionResult.data.session;
 
@@ -252,7 +257,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             } catch {
               // signOut failed (e.g. network timeout) — clear state anyway
             }
-            set({ user: null, participant: null });
+            set({ user: null, participant: null, isInitialized: true, isLoading: false });
             return;
           }
 
@@ -266,15 +271,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           set({ user: session.user, participant: null });
         }
       }
-    } catch {
-      // Catches any error that escapes the inner blocks — most likely an AbortError
-      // from the global 15 s fetch timeout firing on getSession() before our
-      // Promise.race 8 s safety resolves. Treat as unauthenticated and unblock.
-    } finally {
-      // Mark as fully initialized NOW — after all async work (DB fetch) is done.
-      // This ensures AuthProvider's spinner covers the DB warm-up period on Supabase
-      // free tier, preventing pages from hitting a sleeping DB on cold start.
-      set({ isLoading: false, isInitialized: true });
+
+      // Successfully completed initialization
+      set({ isLoading: false, isInitialized: true, initError: null });
+    } catch (err: any) {
+      _initCalled = false; // Reset so user can retry
+
+      // Check if we have a stored session in localStorage
+      const hasLocalSession = Object.keys(localStorage).some(
+        (key) => key.startsWith("sb-") && key.endsWith("-auth-token")
+      );
+
+      if (hasLocalSession) {
+        // If we had a session but it timed out or failed to connect, don't log them out!
+        // Show the retry screen instead of redirecting to login.
+        set({
+          isLoading: false,
+          initError: err?.message === "TIMEOUT" ? "timeout" : "error",
+        });
+      } else {
+        // If they had no session anyway, just mark initialized and let them go to login
+        set({ isLoading: false, isInitialized: true, initError: null, user: null, participant: null });
+      }
+      return;
     }
 
     // Listen for auth state changes (token refresh, sign-out, etc.).
@@ -295,17 +314,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // TOKEN_REFRESHED / USER_UPDATED — re-sync participant data di background.
       // JANGAN set isLoading: true di sini — token refresh adalah operasi background
-      // yang terjadi setiap kali user kembali ke tab. Jika isLoading diset true,
+      // yang terjadi setiap kali user kembali to tab. Jika isLoading diset true,
       // seluruh UI akan terblokir spinner setiap kali user pindah tab dan kembali.
       // Data lama tetap ditampilkan selama refresh berlangsung (UX lebih baik).
       if (session?.user) {
-        const freshParticipant = await fetchParticipantByUserId(session.user.id);
-        set({
-          user: session.user,
-          // If the re-fetch fails (e.g. network hiccup after idle), keep the
-          // current participant so pages don't get stuck on the error screen.
-          participant: freshParticipant ?? get().participant,
-        });
+        try {
+          const freshParticipant = await fetchParticipantByUserId(session.user.id);
+          set({
+            user: session.user,
+            // If the re-fetch fails (e.g. network hiccup after idle), keep the
+            // current participant so pages don't get stuck on the error screen.
+            participant: freshParticipant ?? get().participant,
+          });
+        } catch {
+          // Keep current participant on failure
+          set({
+            user: session.user,
+            participant: get().participant,
+          });
+        }
       }
     });
 

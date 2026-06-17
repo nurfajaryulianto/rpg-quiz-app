@@ -70,6 +70,7 @@ interface ExamState {
   isQuestionAnswered: (questionId: string) => boolean;
   /** Count of submitted questions. */
   getAnsweredCount: () => number;
+  restoreDrafts: (essayDrafts: Record<string, string>, checkboxDrafts: Record<string, string[]>) => void;
   reset: () => void;
 }
 
@@ -209,6 +210,21 @@ export const useExamStore = create<ExamState>((set, get) => ({
   },
 
   getAnsweredCount: () => get().submittedQuestions.size,
+
+  restoreDrafts: (essayDrafts, checkboxDrafts) =>
+    set((state) => {
+      const newEssayTexts = new Map(state.essayTexts);
+      Object.entries(essayDrafts).forEach(([qId, text]) => {
+        newEssayTexts.set(qId, text);
+      });
+
+      const newCheckboxSelections = new Map(state.checkboxSelections);
+      Object.entries(checkboxDrafts).forEach(([qId, optionIds]) => {
+        newCheckboxSelections.set(qId, new Set(optionIds));
+      });
+
+      return { essayTexts: newEssayTexts, checkboxSelections: newCheckboxSelections };
+    }),
 
   reset: () =>
     set({

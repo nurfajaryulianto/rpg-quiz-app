@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -48,6 +48,68 @@ function ExamPage() {
   const [showConfirmFinish, setShowConfirmFinish] = useState(false);
   const [submittingQuestion, setSubmittingQuestion] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+
+  // ─── Draft persistence helpers ────────────────────────────
+  const saveEssayDraft = useCallback((questionId: string, text: string) => {
+    if (!participant) return;
+    try {
+      const draftKey = `rpg_quiz_draft:${participant.id}:${batchId}`;
+      const raw = localStorage.getItem(draftKey);
+      const draft = raw ? JSON.parse(raw) : { essayTexts: {}, checkboxSelections: {} };
+      if (!draft.essayTexts) draft.essayTexts = {};
+      draft.essayTexts[questionId] = text;
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch (e) {
+      console.error("Failed to save draft", e);
+    }
+  }, [participant, batchId]);
+
+  const saveCheckboxDraft = useCallback((questionId: string, optionId: string) => {
+    if (!participant) return;
+    try {
+      const draftKey = `rpg_quiz_draft:${participant.id}:${batchId}`;
+      const raw = localStorage.getItem(draftKey);
+      const draft = raw ? JSON.parse(raw) : { essayTexts: {}, checkboxSelections: {} };
+      if (!draft.checkboxSelections) draft.checkboxSelections = {};
+      
+      const currentSet = new Set<string>(draft.checkboxSelections[questionId] ?? []);
+      if (currentSet.has(optionId)) {
+        currentSet.delete(optionId);
+      } else {
+        currentSet.add(optionId);
+      }
+      draft.checkboxSelections[questionId] = [...currentSet];
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch (e) {
+      console.error("Failed to save draft", e);
+    }
+  }, [participant, batchId]);
+
+  const removeQuestionFromDraft = useCallback((questionId: string) => {
+    if (!participant) return;
+    try {
+      const draftKey = `rpg_quiz_draft:${participant.id}:${batchId}`;
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.essayTexts) delete draft.essayTexts[questionId];
+        if (draft.checkboxSelections) delete draft.checkboxSelections[questionId];
+        localStorage.setItem(draftKey, JSON.stringify(draft));
+      }
+    } catch (e) {
+      console.error("Failed to remove draft", e);
+    }
+  }, [participant, batchId]);
+
+  const clearAllDrafts = useCallback(() => {
+    if (!participant) return;
+    try {
+      const draftKey = `rpg_quiz_draft:${participant.id}:${batchId}`;
+      localStorage.removeItem(draftKey);
+    } catch (e) {
+      console.error("Failed to clear drafts", e);
+    }
+  }, [participant, batchId]);
 
   const finishingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -136,6 +198,39 @@ function ExamPage() {
           setFeedbackMap(newFeedback);
         }
 
+        // Restore unsubmitted drafts from localStorage
+        try {
+          const draftKey = `rpg_quiz_draft:${participant!.id}:${batchId}`;
+          const rawDraft = localStorage.getItem(draftKey);
+          if (rawDraft) {
+            const draft = JSON.parse(rawDraft);
+            const essayDrafts: Record<string, string> = {};
+            const checkboxDrafts: Record<string, string[]> = {};
+
+            if (draft.essayTexts) {
+              Object.entries(draft.essayTexts).forEach(([qId, text]) => {
+                const isSubmitted = existingAnswers?.some((a) => a.question_id === qId);
+                if (!isSubmitted && typeof text === "string" && text.trim()) {
+                  essayDrafts[qId] = text;
+                }
+              });
+            }
+
+            if (draft.checkboxSelections) {
+              Object.entries(draft.checkboxSelections).forEach(([qId, optionIds]) => {
+                const isSubmitted = existingAnswers?.some((a) => a.question_id === qId);
+                if (!isSubmitted && Array.isArray(optionIds) && optionIds.length > 0) {
+                  checkboxDrafts[qId] = optionIds;
+                }
+              });
+            }
+
+            storeRef.current.restoreDrafts(essayDrafts, checkboxDrafts);
+          }
+        } catch (e) {
+          console.error("Failed to restore drafts from localStorage", e);
+        }
+
         setLoading(false);
       } catch (err: unknown) {
         if (!cancelled) {
@@ -167,6 +262,7 @@ function ExamPage() {
         maxStreak: s.maxStreak,
         status,
       });
+      clearAllDrafts();
       storeRef.current.setFinished(true);
       setShowConfirmFinish(false);
       setShowResults(true);
@@ -315,6 +411,7 @@ function ExamPage() {
         result.pointsEarned === question.points ? "correct" :
         result.pointsEarned > 0 ? "partial" : "wrong";
       setFeedbackMap((prev) => new Map(prev).set(question.id, f));
+      removeQuestionFromDraft(question.id);
     } catch (err: unknown) {
       setError((err as Error).message ?? "Failed to save answer");
     } finally {
@@ -340,6 +437,7 @@ function ExamPage() {
       });
       storeRef.current.submitEssayQuestion(question.id);
       setFeedbackMap((prev) => new Map(prev).set(question.id, "submitted"));
+      removeQuestionFromDraft(question.id);
     } catch (err: unknown) {
       setError((err as Error).message ?? "Failed to save answer");
     } finally {
@@ -719,7 +817,12 @@ function ExamPage() {
                       const showWrong = isSubmitted && isChecked && !opt.is_correct;
                       return (
                         <button key={opt.id} disabled={isSubmitted || isBusy}
-                          onClick={() => !isSubmitted && store.toggleCheckboxOption(currentQuestion.id, opt.id)}
+                          onClick={() => {
+                            if (!isSubmitted) {
+                              store.toggleCheckboxOption(currentQuestion.id, opt.id);
+                              saveCheckboxDraft(currentQuestion.id, opt.id);
+                            }
+                          }}
                           className={`w-full text-left px-4 py-3 rounded-xl border transition-all text-sm flex items-center gap-3
                             ${showCorrect ? "border-green-500 bg-green-500/10" :
                               showWrong ? "border-error bg-error/10" :
@@ -759,7 +862,11 @@ function ExamPage() {
                     <textarea
                       disabled={isSubmitted}
                       value={essayTexts.get(currentQuestion.id) ?? ""}
-                      onChange={(e) => store.setEssayText(currentQuestion.id, e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        store.setEssayText(currentQuestion.id, val);
+                        saveEssayDraft(currentQuestion.id, val);
+                      }}
                       rows={7}
                       placeholder="Tulis jawaban Anda di sini..."
                       className="w-full px-4 py-3 rounded-xl border border-outline/30 bg-surface text-on-surface
