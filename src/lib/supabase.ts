@@ -14,15 +14,17 @@ function getSupabase(): SupabaseClient<Database> {
         detectSessionInUrl: false,
       },
       global: {
-        // Apply a hard 15-second deadline to every Supabase HTTP request.
-        // This prevents stale TCP connections (common after an idle tab returns)
-        // from hanging auth calls (signInWithPassword, token refresh, etc.) and
-        // DB queries that have no per-call AbortController indefinitely.
-        // Per-call AbortController signals (used in page fetches, 12 s) are
-        // forwarded as-is and win if they fire before the 15 s global deadline.
+        // Apply a safe deadline to every Supabase HTTP request.
+        // Use a longer timeout (45 seconds) for auth requests to prevent aborting and
+        // invalidating refresh tokens during cold starts. Use 30 seconds for other database queries.
+        // This prevents stale TCP connections from hanging auth calls indefinitely.
         fetch: async (url: RequestInfo | URL, options?: RequestInit) => {
+          const urlStr = typeof url === "string" ? url : url.toString();
+          const isAuth = urlStr.includes("/auth/v1/");
+          const timeoutMs = isAuth ? 45_000 : 30_000;
+
           const timeoutCtrl = new AbortController();
-          const timeoutId = setTimeout(() => timeoutCtrl.abort(), 15_000);
+          const timeoutId = setTimeout(() => timeoutCtrl.abort(), timeoutMs);
           try {
             return await fetch(url, {
               ...options,
